@@ -1,0 +1,146 @@
+"""
+FastAPI主应用文件
+聊天内容智能分析平台的后端服务入口
+"""
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
+import uvicorn
+from loguru import logger
+
+from app.config import settings
+from app.database import create_tables
+from app.api import chat, cards
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    应用生命周期管理
+    在应用启动和关闭时执行必要的操作
+    """
+    # 启动时执行
+    logger.info("🚀 启动聊天内容智能分析平台后端服务")
+    
+    # 创建数据库表
+    try:
+        create_tables()
+        logger.info("✅ 数据库表创建成功")
+    except Exception as e:
+        logger.error(f"❌ 数据库表创建失败: {e}")
+    
+    # 验证API配置
+    try:
+        if not settings.deepseek_api_key or not settings.doubao_api_key:
+            logger.warning("⚠️  API密钥未配置，部分功能可能不可用")
+        else:
+            logger.info("✅ API配置验证成功")
+    except Exception as e:
+        logger.warning(f"⚠️  API配置验证失败: {e}")
+    
+    yield
+    
+    # 关闭时执行
+    logger.info("🛑 聊天内容智能分析平台后端服务已关闭")
+
+
+# 创建FastAPI应用实例
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description="基于AI的聊天内容多维度分析平台，支持图片OCR识别和智能回复建议生成",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    lifespan=lifespan
+)
+
+# 配置CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+# 配置可信主机中间件
+if not settings.debug:
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["localhost", "127.0.0.1", "*.yourdomain.com"]
+    )
+
+
+# 全局异常处理器
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """
+    全局异常处理器
+    捕获所有未处理的异常并返回友好的错误信息
+    """
+    logger.error(f"未处理的异常: {exc}")
+    
+    if settings.debug:
+        # 调试模式下返回详细错误信息
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": f"服务器内部错误: {str(exc)}",
+                "type": type(exc).__name__
+            }
+        )
+    else:
+        # 生产模式下返回通用错误信息
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "服务器内部错误，请稍后重试"}
+        )
+
+
+# 健康检查端点
+@app.get("/health")
+async def health_check():
+    """
+    健康检查端点
+    用于监控服务状态
+    """
+    return {
+        "status": "healthy",
+        "app_name": settings.app_name,
+        "version": settings.app_version,
+        "debug": settings.debug
+    }
+
+
+# 根路径端点
+@app.get("/")
+async def root():
+    """
+    根路径端点
+    返回API基本信息
+    """
+    return {
+        "message": f"欢迎使用{settings.app_name}",
+        "version": settings.app_version,
+        "docs_url": "/docs" if settings.debug else "文档仅在调试模式下可用",
+        "api_prefix": "/api"
+    }
+
+
+# 注册API路由
+app.include_router(chat.router)
+app.include_router(cards.router)
+
+
+# 启动服务器
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.debug,
+        log_level="info" if settings.debug else "warning"
+    )

@@ -1,0 +1,32 @@
+# Node
+frontend/node_modules/
+frontend/.vite/
+frontend/dev.log
+frontend/.cache/
+frontend/dist/
+
+# Python
+**/__pycache__/
+**/*.pyc
+backend/uvicorn.log
+backend/uvicorn.out
+backend/*.sqlite
+backend/*.db
+backend/.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS/Editor
+.DS_Store
+.idea/
+.vscode/
+
+# Build/Dist
+dist/
+build/
+*.egg-info/
+*.out
+.env
+.env.*
+
