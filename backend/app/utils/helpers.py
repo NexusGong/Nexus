@@ -7,6 +7,7 @@ import hashlib
 import secrets
 from typing import Any, Dict, Optional
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 
 def generate_random_string(length: int = 32) -> str:
@@ -191,4 +192,45 @@ def extract_keywords(text: str, max_keywords: int = 5) -> list:
     # 按频率排序，返回前N个关键词
     sorted_words = sorted(word_count.items(), key=lambda x: x[1], reverse=True)
     return [word for word, count in sorted_words[:max_keywords]]
+
+
+def get_user_timezone_from_request(headers: Dict[str, Any]) -> str:
+    """
+    从请求头推断用户时区
+    优先级：X-Timezone/X-Time-Zone -> 默认 Asia/Shanghai
+    """
+    if not headers:
+        return "Asia/Shanghai"
+    # 不同大小写兼容
+    for key in [
+        "X-Timezone",
+        "X-Time-Zone",
+        "x-timezone",
+        "x-time-zone",
+    ]:
+        tz = headers.get(key)
+        if isinstance(tz, str) and tz.strip():
+            return tz.strip()
+    return "Asia/Shanghai"
+
+
+def format_time_for_user(dt: Optional[datetime], user_timezone: Optional[str] = None) -> str:
+    """
+    将UTC时间格式化为用户时区时间字符串
+    """
+    if dt is None:
+        return "未知时间"
+    try:
+        # 入参可能是naive或aware，统一转为UTC再到目标时区
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+
+        tz = ZoneInfo((user_timezone or "Asia/Shanghai"))
+        local_dt = dt.astimezone(tz)
+        return local_dt.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        # 兜底：直接格式化原始时间
+        return dt.strftime("%Y-%m-%d %H:%M")
 

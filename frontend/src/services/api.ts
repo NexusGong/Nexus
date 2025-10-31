@@ -226,17 +226,7 @@ export const cardApi = {
     return response.data
   },
 
-  // 导出卡片为PDF
-  exportCardAsPdf: async (cardId: number): Promise<Blob> => {
-    const response = await api.get(`/cards/${cardId}/export/pdf`, {
-      responseType: 'blob',
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
-    })
-    return response.data
-  },
+  // 导出卡片为PDF（已下线）
 }
 
 // 健康检查API

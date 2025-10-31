@@ -41,3 +41,6 @@ pytest-asyncio==0.21.1
 black==23.12.1
 ruff==0.1.9
 mypy==1.7.1
+
+# 无头浏览器截图
+playwright==1.49.0

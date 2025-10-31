@@ -16,6 +16,7 @@ from app.core.logging import setup_logging
 from app.core.errors import register_exception_handlers
 from app.database import create_tables
 from app.api import chat, cards
+from app.services.screenshot_service import startup_screenshot_service, shutdown_screenshot_service
 
 
 @asynccontextmanager
@@ -35,6 +36,11 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ 数据库表创建失败: {e}")
     
     # 验证API配置
+    # 启动Playwright浏览器以便复用
+    try:
+        await startup_screenshot_service()
+    except Exception as e:
+        logger.warning(f"⚠️  Playwright 启动失败（不影响主服务）：{e}")
     try:
         if not settings.deepseek_api_key or not settings.doubao_api_key:
             logger.warning("⚠️  API密钥未配置，部分功能可能不可用")
@@ -46,6 +52,10 @@ async def lifespan(app: FastAPI):
     yield
     
     # 关闭时执行
+    try:
+        await shutdown_screenshot_service()
+    except Exception as e:
+        logger.warning(f"⚠️  Playwright 关闭失败：{e}")
     logger.info("🛑 聊天内容智能分析平台后端服务已关闭")
 
 

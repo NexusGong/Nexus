@@ -1,0 +1,164 @@
+
+<!doctype html>
+<html lang=zh-CN>
+<head>
+  <meta charset=utf-8 />
+  <meta name=viewport content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body{background:#ffffff;margin:0;padding:0;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"}
+    .container{max-width:64rem}
+    /* 基础兜底样式，防止 Tailwind 未及时注入时文本不可见 */
+    .text-xl{font-size:1.25rem;line-height:1.75rem}
+    .font-bold{font-weight:700}
+    .text-sm{font-size:.875rem;line-height:1.25rem}
+    .rounded-lg{border-radius:.5rem}
+    .border{border:1px solid #e2e8f0}
+    .p-6{padding:1.5rem}
+    .shadow-lg{box-shadow:0 10px 15px -3px rgb(0 0 0 / .1),0 4px 6px -4px rgb(0 0 0 / .1)}
+    .space-y-4> * + *{margin-top:1rem}
+    .space-y-1\.5> * + *{margin-top:.375rem}
+    .flex{display:flex}
+    .items-center{align-items:center}
+    .gap-2{gap:.5rem}
+    .gap-4{gap:1rem}
+    .inline-flex{display:inline-flex}
+    .rounded-full{border-radius:9999px}
+    .px-2\.5{padding-left:.625rem;padding-right:.625rem}
+    .py-0\.5{padding-top:.125rem;padding-bottom:.125rem}
+    .text-xs{font-size:.75rem;line-height:1rem}
+    .text-slate-500{color:#64748b}
+    .bg-white{background:#fff}
+    .bg-slate-100{background:#f1f5f9}
+    .mb-2{margin-bottom:.5rem}
+  </style>
+  <title>寻求情感支持分析</title>
+ </head>
+<body>
+  <div id="capture" class="container mx-auto p-6">
+    <div class="grid gap-4 border bg-white p-6 shadow-lg rounded-lg">
+      <div class="flex flex-col space-y-1.5">
+        <h2 class="tracking-tight text-xl font-bold flex items-center gap-2">📄 寻求情感支持分析</h2>
+        <p class="text-sm text-slate-500">分析卡片详细信息</p>
+      </div>
+
+      <div class="flex items-center gap-4 text-sm text-slate-500">
+        <div class="flex items-center gap-1"><span>创建时间: 2025-10-31 18:53</span></div>
+        <div class="flex items-center gap-1"><span>导出次数: 15</span></div>
+        <div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">general</div>
+      </div>
+
+      <div class="space-y-4">
+        <div class="rounded-lg border bg-white shadow-sm">
+          <div class="p-6 pb-3">
+            <h3 class="font-semibold tracking-tight text-sm flex items-center gap-2">🧠 AI分析结果</h3>
+          </div>
+          <div class="p-6 pt-0 space-y-4">
+            <div>
+              <div class="flex items-center gap-2 mb-2"><span class="font-medium">意图分析</span><div class="inline-flex items-center rounded-full px-2.5 py-0.5 font-semibold text-xs bg-slate-100 border">寻求情感支持</div></div>
+              <div class="mt-2 p-3 bg-slate-100 rounded-md">
+                <p class="text-sm text-slate-600 mb-2">用户直接表达负面情绪，主要意图是寻求情感上的理解和支持，次要意图包括分享当前的心理状态和希望获得他人的关注与回应</p>
+                <div class="flex flex-wrap gap-1"><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">表达情绪状态</div><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">希望获得关注</div></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center gap-2 mb-2"><span class="font-medium">情感分析</span><div class="inline-flex items-center rounded-full px-2.5 py-0.5 font-semibold text-xs bg-red-100 text-red-800 border-red-200 border">negative</div></div>
+              <div class="mt-2 p-3 bg-slate-100 rounded-md">
+                <p class="text-sm text-slate-600 mb-2">明确表达负面情绪，情绪强度中等偏上，但未达到极度强烈的程度，表现出明显的情绪低落状态</p>
+                <div class="flex flex-wrap gap-1"><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">沮丧</div><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">低落</div></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center gap-2 mb-2"><span class="font-medium">语气分析</span><div class="inline-flex items-center rounded-full px-2.5 py-0.5 font-semibold text-xs border">随意</div></div>
+              <div class="mt-2 p-3 bg-slate-100 rounded-md">
+                <p class="text-sm text-slate-600 mb-2">语气较为随意自然，表达方式直接简洁，符合朋友间或熟悉关系中的交流方式</p>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center gap-2 mb-2"><span class="font-medium">关系分析</span><div class="inline-flex items-center rounded-full px-2.5 py-0.5 font-semibold text-xs border">熟悉</div></div>
+              <div class="mt-2 p-3 bg-slate-100 rounded-md">
+                <p class="text-sm text-slate-600 mb-2">能够直接表达负面情绪，暗示双方关系达到一定熟悉程度，权力关系平等，信任度中等偏上</p>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center gap-2 mb-2"><span class="font-medium">潜台词分析</span></div>
+              <div class="mt-2 p-3 bg-slate-100 rounded-md space-y-2">
+                <div>
+                  <span class="text-xs font-medium">隐含含义:</span>
+                  <div class="flex flex-wrap gap-1 mt-1"><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">希望对方询问原因</div><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">期待获得安慰</div></div>
+                </div>
+                <div>
+                  <span class="text-xs font-medium">潜在影响:</span>
+                  <div class="flex flex-wrap gap-1 mt-1"><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">需要情感支持</div><div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-xs text-foreground">愿意分享更多细节</div></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 智能回复建议 -->
+        <div class="rounded-lg border bg-white shadow-sm">
+          <div class="p-6 pb-3">
+            <h3 class="font-semibold tracking-tight text-sm flex items-center gap-2">💡 智能回复建议</h3>
+            <p class="text-muted-foreground text-xs">基于分析结果生成的回复建议，点击复制使用</p>
+          </div>
+          <div class="p-6 pt-0">
+            <div class="space-y-3">
+              
+<div class="p-3 border rounded-md hover:bg-muted/30 transition-colors">
+  <div class="flex items-start justify-between mb-2">
+    <div>
+      <div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-foreground text-xs mb-1">情感共鸣型</div>
+      <h4 class="text-sm font-medium">表达理解与陪伴</h4>
+    </div>
+  </div>
+  <p class="text-xs text-muted-foreground mb-2">通过共情让对方感受到被理解和支持，为后续倾诉创造安全空间</p>
+  <div class="space-y-1"><div class="text-xs bg-muted/50 p-2 rounded">"听起来你现在心情不太好，我在这里陪着你"</div><div class="text-xs bg-muted/50 p-2 rounded">"感受到你的不开心了，想聊聊发生了什么吗？"</div></div>
+</div>
+
+<div class="p-3 border rounded-md hover:bg-muted/30 transition-colors">
+  <div class="flex items-start justify-between mb-2">
+    <div>
+      <div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-foreground text-xs mb-1">理性分析型</div>
+      <h4 class="text-sm font-medium">引导问题梳理</h4>
+    </div>
+  </div>
+  <p class="text-xs text-muted-foreground mb-2">温和地引导对方分析情绪来源，帮助理清思路</p>
+  <div class="space-y-1"><div class="text-xs bg-muted/50 p-2 rounded">"是遇到什么具体的事情让你不开心吗？我们可以一起分析一下"</div><div class="text-xs bg-muted/50 p-2 rounded">"这种不开心的感觉是从什么时候开始的呢？"</div></div>
+</div>
+
+<div class="p-3 border rounded-md hover:bg-muted/30 transition-colors">
+  <div class="flex items-start justify-between mb-2">
+    <div>
+      <div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-foreground text-xs mb-1">幽默化解型</div>
+      <h4 class="text-sm font-medium">轻松氛围调节</h4>
+    </div>
+  </div>
+  <p class="text-xs text-muted-foreground mb-2">用适度的幽默缓解沉重情绪，但注意保持尊重和分寸</p>
+  <div class="space-y-1"><div class="text-xs bg-muted/50 p-2 rounded">"看来是时候派出我的开心魔法了！先来个虚拟拥抱怎么样？"</div><div class="text-xs bg-muted/50 p-2 rounded">"不开心的时候最适合吃冰淇淋了，要不要云约个甜品？"</div></div>
+</div>
+
+<div class="p-3 border rounded-md hover:bg-muted/30 transition-colors">
+  <div class="flex items-start justify-between mb-2">
+    <div>
+      <div class="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold text-foreground text-xs mb-1">行动支持型</div>
+      <h4 class="text-sm font-medium">提供具体帮助</h4>
+    </div>
+  </div>
+  <p class="text-xs text-muted-foreground mb-2">给出实际的陪伴或解决方案，展现真诚的支持意愿</p>
+  <div class="space-y-1"><div class="text-xs bg-muted/50 p-2 rounded">"需要我陪你做点什么分散注意力吗？比如打个电话或者视频"</div><div class="text-xs bg-muted/50 p-2 rounded">"如果你愿意的话，我可以当个树洞，随时听你说说"</div></div>
+</div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

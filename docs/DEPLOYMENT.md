@@ -21,7 +21,11 @@ cd Nexus
 # 3. 配置API密钥
 # 编辑 backend/.env 文件，填入你的API密钥
 
-# 4. 启动服务
+# 4. 启动服务（首次需安装 Playwright 浏览器）
+conda activate nexus-chat-analysis
+python -m playwright install chromium
+
+# 5. 启动服务
 ./start_backend.sh    # 终端1
 ./start_frontend.sh   # 终端2
 ```

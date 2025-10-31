@@ -92,6 +92,7 @@ export default function CardsPage() {
   const handleExportImage = async (cardId: number) => {
     try {
       setExportingCard(cardId)
+      // 使用后端高质量导出（Playwright 渲染）
       const blob = await cardApi.exportCardAsImage(cardId)
       downloadFile(blob, `analysis_card_${cardId}.png`)
       toast({
@@ -112,28 +113,7 @@ export default function CardsPage() {
     }
   }
 
-  const handleExportPdf = async (cardId: number) => {
-    try {
-      setExportingCard(cardId)
-      const blob = await cardApi.exportCardAsPdf(cardId)
-      downloadFile(blob, `analysis_card_${cardId}.pdf`)
-      toast({
-        title: "导出成功",
-        description: "分析卡片已导出为PDF",
-        duration: 500
-      })
-    } catch (error) {
-      console.error('导出PDF失败:', error)
-      toast({
-        title: "导出失败",
-        description: "无法导出PDF，请重试",
-        variant: "destructive",
-        duration: 500
-      })
-    } finally {
-      setExportingCard(null)
-    }
-  }
+  // PDF导出功能已下线
 
   const handleEditCard = (card: AnalysisCard) => {
     setEditingCard(card.id)
@@ -485,17 +465,7 @@ export default function CardsPage() {
                 )}
                 导出图片
               </Button>
-              <Button 
-                onClick={() => handleExportPdf(viewingCard.id)}
-                disabled={exportingCard === viewingCard.id}
-              >
-                {exportingCard === viewingCard.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <FileText className="h-4 w-4 mr-2" />
-                )}
-                导出PDF
-              </Button>
+              
             </DialogFooter>
           </DialogContent>
         </Dialog>

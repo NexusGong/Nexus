@@ -15,7 +15,7 @@ import { useChatStore } from '@/store/chatStore'
 import { conversationApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
-import { cn } from '@/lib/utils'
+import { cn, formatRelativeTime } from '@/lib/utils'
 
 export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -137,21 +137,6 @@ export default function Sidebar() {
     }
   }
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-    
-    if (diffInHours < 1) {
-      return '刚刚'
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}小时前`
-    } else if (diffInHours < 24 * 7) {
-      return `${Math.floor(diffInHours / 24)}天前`
-    } else {
-      return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
-    }
-  }
 
 
   const navigation = [
@@ -266,7 +251,7 @@ export default function Sidebar() {
                                     </span>
                                     <span className="text-xs text-muted-foreground">•</span>
                                     <span className="text-xs text-muted-foreground">
-                                      {formatTime(conversation.updated_at)}
+                                      {formatRelativeTime(conversation.updated_at)}
                                     </span>
                                   </div>
                                 </button>

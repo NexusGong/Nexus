@@ -345,27 +345,35 @@ async def export_card_as_image(
         from app.utils.helpers import get_user_timezone_from_request
         user_timezone = get_user_timezone_from_request(dict(request.headers)) if request else "Asia/Shanghai"
         
-        # 生成图片
-        image_data = await card_service.generate_card_image(card, user_timezone)
+        # 生成图片（Playwright渲染）
+        from app.utils.helpers import format_time_for_user
+        from app.services.screenshot_service import generate_card_image_with_playwright
+        created_str = format_time_for_user(card.created_at, user_timezone).replace('年', '-').replace('月', '-').replace('日', '')
+        image_data = await generate_card_image_with_playwright(card, created_str)
         
-        # 更新导出统计
-        card.export_count += 1
+        # 更新导出统计（兼容历史数据为NULL的情况）
+        card.export_count = (card.export_count or 0) + 1
+        from datetime import datetime, timezone
+        card.last_exported_at = datetime.now(timezone.utc)
         db.commit()
         
         logger.info(f"导出卡片图片: {card_id}")
         
-        # 生成文件名：主题+具体时间
+        # 生成文件名：主题+具体时间（仅ASCII），并提供UTF-8编码的filename*
         from app.utils.helpers import format_time_for_user
-        safe_title = "".join(c for c in card.title if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        safe_title = safe_title.replace(' ', '_')[:30]  # 限制长度
+        import re
+        from urllib.parse import quote
+        ascii_title = re.sub(r'[^A-Za-z0-9 _-]+', '', card.title or '').strip()
+        ascii_title = ascii_title.replace(' ', '_')[:30] or 'card'
         timestamp = format_time_for_user(card.created_at, user_timezone).replace(' ', '_').replace(':', '-')
-        filename = f"{safe_title}_{timestamp}.png"
-        
+        filename_ascii = f"{ascii_title}_{timestamp}.png"
+        filename_utf8 = quote(filename_ascii)
+
         return StreamingResponse(
             io.BytesIO(image_data),
             media_type="image/png",
             headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{filename}",
+                "Content-Disposition": f"attachment; filename=\"{filename_ascii}\"; filename*=UTF-8''{filename_utf8}",
                 "Content-Type": "image/png"
             }
         )
@@ -380,76 +388,5 @@ async def export_card_as_image(
         )
 
 
-@router.get("/{card_id}/export/pdf")
-async def export_card_as_pdf(
-    card_id: int,
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    request: Request = None
-):
-    """
-    导出分析卡片为PDF
-    
-    Args:
-        card_id: 卡片ID
-        db: 数据库会话
-        current_user: 当前用户（可选）
-        
-    Returns:
-        StreamingResponse: PDF文件流
-    """
-    try:
-        card = db.query(AnalysisCard).filter(AnalysisCard.id == card_id).first()
-        
-        if not card:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="卡片不存在"
-            )
-        
-        # 检查权限
-        if current_user and card.user_id != current_user.id:
-            if not card.is_public:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="无权限导出此卡片"
-                )
-        
-        # 获取用户时区
-        from app.utils.helpers import get_user_timezone_from_request
-        user_timezone = get_user_timezone_from_request(dict(request.headers)) if request else "Asia/Shanghai"
-        
-        # 生成PDF
-        pdf_data = await card_service.generate_card_pdf(card, user_timezone)
-        
-        # 更新导出统计
-        card.export_count += 1
-        db.commit()
-        
-        logger.info(f"导出卡片PDF: {card_id}")
-        
-        # 生成文件名：主题+具体时间
-        from app.utils.helpers import format_time_for_user
-        safe_title = "".join(c for c in card.title if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        safe_title = safe_title.replace(' ', '_')[:30]  # 限制长度
-        timestamp = format_time_for_user(card.created_at, user_timezone).replace(' ', '_').replace(':', '-')
-        filename = f"{safe_title}_{timestamp}.pdf"
-        
-        return StreamingResponse(
-            io.BytesIO(pdf_data),
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{filename}",
-                "Content-Type": "application/pdf"
-            }
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"导出卡片PDF失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="导出卡片PDF失败"
-        )
+# PDF 导出功能已下线
 

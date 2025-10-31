@@ -30,8 +30,8 @@ class CardService:
             # 动态计算所需高度
             total_height = self._calculate_required_height(card)
             
-            # 创建画布 - 匹配前端Dialog max-w-4xl 宽度
-            width, height = 1200, total_height  # max-w-4xl 对应约1200px
+            # 提升清晰度：加宽画布到1600，提高字体尺寸
+            width, height = 1600, total_height
             image = Image.new('RGB', (width, height), color='#ffffff')
             draw = ImageDraw.Draw(image)
             
@@ -55,7 +55,8 @@ class CardService:
             
             # 转换为字节
             img_buffer = io.BytesIO()
-            image.save(img_buffer, format='PNG')
+            # 提高导出清晰度：使用更高dpi
+            image.save(img_buffer, format='PNG', dpi=(300, 300))
             img_buffer.seek(0)
             
             logger.info(f"生成卡片图片成功: {card.id}, 尺寸: {width}x{height}")
@@ -301,9 +302,12 @@ class CardService:
             # 描述内容 - 完整显示，不折叠
             if data.get('description'):
                 desc_lines = self._wrap_text(data['description'], width - 120, fonts['small'])
+                # 动态行高，避免重叠
+                ascent, descent = fonts['small'].getmetrics()
+                line_height = ascent + descent + 6
                 for line in desc_lines:  # 显示所有行，不限制
                     draw.text((60, content_y), line, fill='#64748b', font=fonts['small'])
-                    content_y += 25
+                    content_y += line_height
                 content_y += 10  # mb-2
             
             # 次要信息徽章 - 完整显示，不折叠
@@ -312,55 +316,64 @@ class CardService:
                 for secondary_item in data['secondary']:  # 显示所有次要信息
                     badge_start_x = self._draw_secondary_badge(draw, badge_start_x, content_y, secondary_item, fonts['tiny'])
                     badge_start_x += 10  # gap-1
-                content_y += 30
+                content_y += 36
             elif 'emotions' in data and data['emotions']:
                 for emotion in data['emotions']:  # 显示所有情感
                     badge_start_x = self._draw_secondary_badge(draw, badge_start_x, content_y, emotion, fonts['tiny'])
                     badge_start_x += 10  # gap-1
-                content_y += 30
+                content_y += 36
             
             # 置信度/强度信息 - 匹配前端text-xs text-muted-foreground
             if 'confidence' in data:
                 confidence_percent = int(data['confidence'] * 100) if data['confidence'] else 0
                 draw.text((60, content_y), f"置信度: {confidence_percent}%", fill='#64748b', font=fonts['tiny'])
-                content_y += 20
+                ascent, descent = fonts['tiny'].getmetrics()
+                content_y += ascent + descent + 6
             
             if 'intensity' in data:
                 intensity_percent = int(data['intensity'] * 100) if data['intensity'] else 0
                 draw.text((60, content_y), f"强度: {intensity_percent}%", fill='#64748b', font=fonts['tiny'])
-                content_y += 20
+                ascent, descent = fonts['tiny'].getmetrics()
+                content_y += ascent + descent + 6
             
             # 特殊处理：语气分析的额外信息
             if 'politeness' in data:
                 politeness = data['politeness']
                 draw.text((60, content_y), f"礼貌程度: {politeness}", fill='#64748b', font=fonts['tiny'])
-                content_y += 20
+                ascent, descent = fonts['tiny'].getmetrics()
+                content_y += ascent + descent + 6
             
             # 特殊处理：关系分析的额外信息
             if 'power_dynamic' in data:
                 power = data['power_dynamic']
                 draw.text((60, content_y), f"权力关系: {power}", fill='#64748b', font=fonts['tiny'])
-                content_y += 20
+                ascent, descent = fonts['tiny'].getmetrics()
+                content_y += ascent + descent + 6
             if 'trust_level' in data:
                 trust = data['trust_level']
                 draw.text((60, content_y), f"信任度: {trust}", fill='#64748b', font=fonts['tiny'])
-                content_y += 20
+                ascent, descent = fonts['tiny'].getmetrics()
+                content_y += ascent + descent + 6
             
             # 特殊处理：潜台词分析的复杂结构 - 完整显示，不折叠
             if 'subtext' in data:
                 if 'hidden_meanings' in data:
                     draw.text((60, content_y), "隐含含义:", fill='#64748b', font=fonts['tiny'])
-                    content_y += 20
+                    ascent, descent = fonts['tiny'].getmetrics()
+                    content_y += ascent + descent + 6
                     for meaning in data['hidden_meanings']:  # 显示所有隐含含义
                         self._draw_secondary_badge(draw, 60, content_y, meaning, fonts['tiny'])
-                        content_y += 25
+                        ascent, descent = fonts['tiny'].getmetrics()
+                        content_y += ascent + descent + 13
                 
                 if 'implications' in data:
                     draw.text((60, content_y), "潜在影响:", fill='#64748b', font=fonts['tiny'])
-                    content_y += 20
+                    ascent, descent = fonts['tiny'].getmetrics()
+                    content_y += ascent + descent + 6
                     for impact in data['implications']:  # 显示所有潜在影响
                         self._draw_outline_badge(draw, 60, content_y, impact, fonts['tiny'])
-                        content_y += 25
+                        ascent, descent = fonts['tiny'].getmetrics()
+                        content_y += ascent + descent + 13
             
             return content_y + 20
         except Exception as e:
@@ -481,9 +494,11 @@ class CardService:
                 # 建议描述 - 完整显示，不折叠
                 if suggestion.get('description'):
                     desc_lines = self._wrap_text(suggestion['description'], width - 140, fonts['tiny'])
+                    ascent, descent = fonts['tiny'].getmetrics()
+                    line_height = ascent + descent + 6
                     for line in desc_lines:  # 显示所有行，不限制
                         draw.text((70, current_y + 70), line, fill='#64748b', font=fonts['tiny'])
-                        current_y += 20
+                        current_y += line_height
                     current_y += 10  # mb-2
                 
                 # 示例回复 - 完整显示，不折叠
@@ -491,9 +506,11 @@ class CardService:
                     for j, example in enumerate(suggestion['examples']):  # 显示所有示例
                         # 匹配前端text-xs bg-muted/50 p-2 rounded
                         example_lines = self._wrap_text(f'"{example}"', width - 140, fonts['tiny'])
+                        ascent, descent = fonts['tiny'].getmetrics()
+                        line_height = ascent + descent + 6
                         for line in example_lines:  # 每个示例显示所有行
                             draw.text((70, current_y + 10), line, fill='#374151', font=fonts['tiny'])
-                            current_y += 20
+                            current_y += line_height
                         current_y += 5  # space-y-1
                 
                 current_y += suggestion_height + 20
@@ -573,11 +590,11 @@ class CardService:
             
             fonts = {}
             font_sizes = {
-                'title': 24,      # 标题字体
-                'subtitle': 18,   # 副标题字体
-                'text': 16,       # 正文字体
-                'small': 14,      # 小字体
-                'tiny': 12        # 超小字体
+                'title': 28,      # 标题字体（增大）
+                'subtitle': 20,   # 副标题字体（增大）
+                'text': 18,       # 正文字体（增大）
+                'small': 16,      # 小字体（增大）
+                'tiny': 14        # 超小字体（增大）
             }
             
             for font_path in font_paths:
@@ -624,29 +641,28 @@ class CardService:
             logger.error(f"绘制背景失败: {e}")
     
     def _wrap_text(self, text: str, max_width: int, font) -> list:
-        """文本换行"""
+        """文本换行（支持中英文混排，逐字符测量以避免重叠）"""
         try:
-            words = text.split()
+            if not text:
+                return []
             lines = []
-            current_line = []
-            
-            for word in words:
-                test_line = ' '.join(current_line + [word])
-                bbox = font.getbbox(test_line)
-                text_width = bbox[2] - bbox[0]
-                
-                if text_width <= max_width:
-                    current_line.append(word)
+            current = ''
+            for ch in text:
+                test = current + ch
+                bbox = font.getbbox(test)
+                w = bbox[2] - bbox[0]
+                if w <= max_width:
+                    current = test
                 else:
-                    if current_line:
-                        lines.append(' '.join(current_line))
-                        current_line = [word]
+                    if current:
+                        lines.append(current)
+                        current = ch
                     else:
-                        lines.append(word)
-            
-            if current_line:
-                lines.append(' '.join(current_line))
-            
+                        # 单字符已超宽，强制换行
+                        lines.append(ch)
+                        current = ''
+            if current:
+                lines.append(current)
             return lines
         except Exception as e:
             logger.error(f"文本换行失败: {e}")

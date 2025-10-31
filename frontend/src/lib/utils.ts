@@ -98,6 +98,53 @@ export function formatTime(date: string | Date): string {
   })
 }
 
+export function formatRelativeTime(date: string | Date): string {
+  let d: Date
+  
+  if (typeof date === 'string') {
+    // 如果字符串没有时区信息，假设是UTC时间
+    if (!date.includes('Z') && !date.includes('+') && !date.includes('-', 10)) {
+      // 添加UTC时区标识
+      d = new Date(date + 'Z')
+    } else {
+      d = new Date(date)
+    }
+  } else {
+    d = date
+  }
+  
+  // 检查是否是有效的日期
+  if (isNaN(d.getTime())) {
+    return '无效日期'
+  }
+  
+  // 使用UTC时间戳计算时间差，避免时区问题
+  const now = new Date()
+  const diffInMs = now.getTime() - d.getTime()
+  const diffInSeconds = Math.floor(diffInMs / 1000)
+  const diffInMinutes = Math.floor(diffInSeconds / 60)
+  const diffInHours = Math.floor(diffInMinutes / 60)
+  const diffInDays = Math.floor(diffInHours / 24)
+  
+  if (diffInSeconds < 60) {
+    return '刚刚'
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes}分钟前`
+  } else if (diffInHours < 24) {
+    return `${diffInHours}小时前`
+  } else if (diffInDays < 7) {
+    return `${diffInDays}天前`
+  } else {
+    // 超过7天显示日期
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return d.toLocaleDateString('zh-CN', { 
+      month: 'short', 
+      day: 'numeric',
+      timeZone: userTimezone
+    })
+  }
+}
+
 export function downloadFile(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
