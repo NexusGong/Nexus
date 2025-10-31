@@ -26,3 +26,4 @@ def register_exception_handlers(app: FastAPI, *, debug: bool) -> None:
         return JSONResponse(status_code=500, content={"detail": "服务器内部错误，请稍后重试"})
 
 
+
