@@ -22,14 +22,15 @@ export default function Header() {
         </div>
 
         {/* 右侧用户操作区域 */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 text-foreground">
           {/* 主题切换按钮 */}
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-9 w-9"
+            className="h-9 w-9 text-foreground hover:text-foreground"
             onClick={toggleTheme}
             title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+            aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
           >
             {theme === 'dark' ? (
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,7 +45,7 @@ export default function Header() {
           </Button>
 
           {/* 通知按钮 */}
-          <Button variant="ghost" size="icon" className="h-9 w-9" title="通知">
+          <Button variant="ghost" size="icon" className="h-9 w-9 text-foreground" title="通知" aria-label="通知">
             <Bell className="h-4 w-4" />
           </Button>
 
@@ -52,8 +53,9 @@ export default function Header() {
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-9 w-9" 
+            className="h-9 w-9 text-foreground" 
             title="设置"
+            aria-label="设置"
             onClick={handleSettingsClick}
           >
             <Settings className="h-4 w-4" />
@@ -61,7 +63,7 @@ export default function Header() {
 
           {/* 用户头像 */}
           <div className="flex items-center gap-2 pl-2 border-l">
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" title="用户菜单">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-foreground" title="用户菜单" aria-label="用户菜单">
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <User className="h-4 w-4 text-primary" />
               </div>

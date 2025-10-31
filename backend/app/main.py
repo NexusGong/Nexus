@@ -12,6 +12,8 @@ import uvicorn
 from loguru import logger
 
 from app.config import settings
+from app.core.logging import setup_logging
+from app.core.errors import register_exception_handlers
 from app.database import create_tables
 from app.api import chat, cards
 
@@ -47,6 +49,9 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 聊天内容智能分析平台后端服务已关闭")
 
 
+# 初始化日志（保持与原有级别语义一致）
+setup_logging(settings.debug)
+
 # 创建FastAPI应用实例
 app = FastAPI(
     title=settings.app_name,
@@ -74,30 +79,10 @@ if not settings.debug:
     )
 
 
-# 全局异常处理器
-@app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """
-    全局异常处理器
-    捕获所有未处理的异常并返回友好的错误信息
-    """
-    logger.error(f"未处理的异常: {exc}")
-    
-    if settings.debug:
-        # 调试模式下返回详细错误信息
-        return JSONResponse(
-            status_code=500,
-            content={
-                "detail": f"服务器内部错误: {str(exc)}",
-                "type": type(exc).__name__
-            }
-        )
-    else:
-        # 生产模式下返回通用错误信息
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "服务器内部错误，请稍后重试"}
-        )
+"""
+全局异常处理器注册（行为保持不变）
+"""
+register_exception_handlers(app, debug=settings.debug)
 
 
 # 健康检查端点

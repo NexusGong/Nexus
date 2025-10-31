@@ -249,7 +249,7 @@ export default function CardsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCards.map((card) => (
-            <Card key={card.id} className="group hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-gradient-to-br from-white to-gray-50/50">
+            <Card key={card.id} className="group hover:shadow-xl transition-all duration-300 border shadow-md bg-card">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -273,16 +273,16 @@ export default function CardsPage() {
                           }
                         }}
                         onBlur={() => handleSaveEdit(card.id)}
-                        className="w-full text-lg font-semibold bg-transparent border-b border-blue-300 focus:outline-none focus:border-blue-500 text-gray-900"
+                    className="w-full text-lg font-semibold bg-transparent border-b border-blue-300 focus:outline-none focus:border-blue-500 text-foreground"
                         autoFocus
                       />
                     ) : (
-                      <CardTitle className="text-lg line-clamp-2 text-gray-900 group-hover:text-blue-600 transition-colors">
+                      <CardTitle className="text-lg line-clamp-2 text-foreground group-hover:text-blue-600 transition-colors">
                         {card.title}
                       </CardTitle>
                     )}
                     {card.description && (
-                      <CardDescription className="mt-2 line-clamp-2 text-gray-600">
+                      <CardDescription className="mt-2 line-clamp-2 text-muted-foreground">
                         {card.description}
                       </CardDescription>
                     )}
@@ -336,20 +336,20 @@ export default function CardsPage() {
               <CardContent className="space-y-3">
                 {/* 分析结果预览 */}
                 {card.analysis_data && (
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-100">
-                    <h4 className="text-sm font-semibold mb-2 text-gray-800 flex items-center gap-2">
+                  <div className="p-3 rounded-lg border bg-primary/5 border-primary/20">
+                    <h4 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
                       AI分析结果
                     </h4>
                     <div className="grid grid-cols-1 gap-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-600">意图</span>
+                        <span className="text-xs text-muted-foreground">意图</span>
                         <Badge variant="outline" className="text-xs bg-white border-blue-200 text-blue-700 px-2 py-0.5">
                           {card.analysis_data.intent?.primary}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-600">情感</span>
+                        <span className="text-xs text-muted-foreground">情感</span>
                         <Badge 
                           variant={card.analysis_data.sentiment?.overall === 'positive' ? 'default' : 
                                   card.analysis_data.sentiment?.overall === 'negative' ? 'destructive' : 'secondary'}
@@ -360,8 +360,8 @@ export default function CardsPage() {
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-600">语气</span>
-                        <Badge variant="outline" className="text-xs bg-white border-gray-200 text-gray-700 px-2 py-0.5">
+                        <span className="text-xs text-muted-foreground">语气</span>
+                        <Badge variant="outline" className="text-xs bg-card border text-foreground px-2 py-0.5">
                           {card.analysis_data.tone?.style}
                         </Badge>
                       </div>
@@ -372,10 +372,10 @@ export default function CardsPage() {
                 {/* 标签 */}
                 {card.tags && card.tags.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-medium mb-1.5 text-gray-800">标签</h4>
+                    <h4 className="text-sm font-medium mb-1.5 text-foreground">标签</h4>
                     <div className="flex flex-wrap gap-1">
                       {card.tags.map((tag, index) => (
-                        <Badge key={index} variant="secondary" className="text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors px-2 py-0.5">
+                        <Badge key={index} variant="secondary" className="text-xs bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors px-2 py-0.5">
                           {tag}
                         </Badge>
                       ))}
@@ -384,7 +384,7 @@ export default function CardsPage() {
                 )}
 
                 {/* 元信息 */}
-                <div className="space-y-1 text-xs text-muted-foreground pt-2 border-t border-gray-100">
+                <div className="space-y-1 text-xs text-muted-foreground pt-2 border-t border">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <Calendar className="h-3 w-3" />

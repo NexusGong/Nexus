@@ -369,7 +369,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
         size="icon"
         onClick={() => fileInputRef.current?.click()}
         disabled={disabled || isUploading}
-        className="h-9 w-9 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full"
+        className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full"
         title="上传图片"
       >
         {isUploading ? (
@@ -391,8 +391,8 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
 
       {/* 图片预览和操作 - 居中显示 */}
       {images.length > 0 && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <Card className="p-6 bg-white shadow-2xl border border-gray-200 max-w-lg w-full mx-4 rounded-2xl backdrop-blur-sm">
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <Card className="p-6 bg-card shadow-2xl border max-w-lg w-full mx-4 rounded-2xl backdrop-blur-sm">
             <div className="space-y-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between">
@@ -401,10 +401,10 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                     <ImageIcon className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-lg font-semibold text-gray-900">
+                    <h4 className="text-lg font-semibold text-foreground">
                       图片预览
                     </h4>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground">
                       已选择 {images.length} 张图片，点击开始识别
                     </p>
                   </div>
@@ -413,7 +413,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                   variant="ghost"
                   size="sm"
                   onClick={() => setImages([])}
-                  className="h-8 w-8 p-0 hover:bg-gray-100 rounded-full"
+                  className="h-8 w-8 p-0 hover:bg-accent rounded-full"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -423,7 +423,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
               <div className="grid grid-cols-2 gap-4 max-h-64 overflow-y-auto">
                 {images.map((image) => (
                   <div key={image.id} className="relative group">
-                    <div className="aspect-square rounded-xl overflow-hidden border-2 border-gray-200 group-hover:border-blue-300 transition-colors">
+                    <div className="aspect-square rounded-xl overflow-hidden border-2 border group-hover:border-blue-300 transition-colors">
                       <img
                         src={image.preview}
                         alt="预览"
@@ -492,8 +492,8 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
 
       {/* OCR处理中的全屏提示 */}
       {isProcessing && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-96 shadow-2xl">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card rounded-2xl p-8 w-96 shadow-2xl">
             <div className="text-center space-y-6">
               {/* 动画图标 */}
               <div className="relative">
@@ -506,12 +506,12 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
               
               {/* 动态标题和描述 - 固定宽度 */}
               <div className="space-y-3 w-full">
-                <h3 className="text-2xl font-bold text-gray-900 w-full">
+                <h3 className="text-2xl font-bold text-foreground w-full">
                   <span className="block w-full text-center">
                     <OCRProcessingText />
                   </span>
                 </h3>
-                <p className="text-gray-600 text-lg w-full">
+                <p className="text-muted-foreground text-lg w-full">
                   <span className="block w-full text-center">
                     <OCRProcessingDescription />
                   </span>
@@ -529,7 +529,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                     ></div>
                   ))}
                 </div>
-                <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div className="bg-muted rounded-full h-2 overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500 ease-out"
                     style={{ 
@@ -537,7 +537,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                     }}
                   ></div>
                 </div>
-                <p className="text-sm text-gray-500 font-medium">
+                <p className="text-sm text-muted-foreground font-medium">
                   识别进度: {images.length - images.filter(img => img.isProcessing).length} / {images.length}
                 </p>
               </div>
@@ -550,17 +550,17 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
       <Dialog open={showTextSelection} onOpenChange={setShowTextSelection}>
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden">
           <DialogHeader className="pb-4">
-            <DialogTitle className="text-xl font-semibold text-gray-900">
+            <DialogTitle className="text-xl font-semibold text-foreground">
               选择要保留的文本段落
             </DialogTitle>
-            <DialogDescription className="text-sm text-gray-600 mt-1">
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
               请选择您想要保留的文本段落，选中的内容将自动填入输入框
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6">
             {/* 操作栏 */}
-            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between bg-muted p-4 rounded-lg">
               <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
@@ -570,7 +570,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                 >
                   {textSegments.every(s => s.selected) ? '取消全选' : '全选'}
                 </Button>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                   <span>
                     已选择 <span className="font-semibold text-blue-600">
@@ -609,7 +609,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                               <Check className="h-3 w-3 text-white" />
                             </div>
                           ) : (
-                            <div className="w-5 h-5 border-2 border-gray-300 rounded-full" />
+                            <div className="w-5 h-5 border-2 border rounded-full" />
                           )}
                         </div>
 
@@ -620,12 +620,12 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                               {segment.speakerName || segment.source}
                             </div>
                             {segment.selected && (
-                              <div className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                              <div className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">
                                 已选择
                               </div>
                             )}
                           </div>
-                          <div className={cn('text-sm text-gray-900 whitespace-pre-wrap leading-relaxed', isRight ? 'text-right' : 'text-left')}>
+                          <div className={cn('text-sm text-foreground whitespace-pre-wrap leading-relaxed', isRight ? 'text-right' : 'text-left')}>
                             {segment.text}
                           </div>
                         </div>
@@ -637,8 +637,8 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
             </div>
 
             {/* 底部操作按钮 */}
-            <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-              <div className="text-sm text-gray-500">
+            <div className="flex justify-between items-center pt-4 border-t border">
+              <div className="text-sm text-muted-foreground">
                 选择完成后，文本将自动填入输入框
               </div>
               <div className="flex gap-3">

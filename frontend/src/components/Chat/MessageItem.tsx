@@ -152,12 +152,12 @@ export default function MessageItem({ message, onRegenerateAnalysis }: MessageIt
         isUser ? "items-end max-w-[85%]" : "items-start max-w-[90%]"
       )}>
         <div className={cn(
-          "px-4 py-3 rounded-2xl text-sm leading-relaxed",
+          "px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-full",
           isUser 
-            ? "bg-blue-500 text-white rounded-br-sm max-w-full" 
+            ? "bg-blue-500 text-white rounded-br-sm" 
             : isAnalysis
-            ? "bg-purple-50 border border-purple-200 text-purple-900 rounded-bl-sm max-w-full"
-            : "bg-gray-100 text-gray-900 rounded-bl-sm max-w-full"
+            ? "bg-muted border text-foreground rounded-bl-sm"
+            : "bg-muted text-foreground rounded-bl-sm"
         )}>
           <div className="space-y-2">
             {/* 图片内容 */}
@@ -253,7 +253,7 @@ export default function MessageItem({ message, onRegenerateAnalysis }: MessageIt
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-3 text-xs"
+              className="h-8 px-3 text-xs text-foreground"
               onClick={() => {
                 if (onRegenerateAnalysis) {
                   // 找到对应的用户消息
@@ -269,13 +269,13 @@ export default function MessageItem({ message, onRegenerateAnalysis }: MessageIt
                 }
               }}
             >
-              <RotateCcw className="h-3 w-3 mr-1" />
+              <RotateCcw className="h-3 w-3 mr-1 text-foreground" />
               重新分析
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-3 text-xs"
+              className="h-8 px-3 text-xs text-foreground"
               onClick={() => {
                 // TODO: 实现继续对话功能
                 toast({
@@ -285,21 +285,21 @@ export default function MessageItem({ message, onRegenerateAnalysis }: MessageIt
                 })
               }}
             >
-              <MessageSquare className="h-3 w-3 mr-1" />
+              <MessageSquare className="h-3 w-3 mr-1 text-foreground" />
               继续对话
             </Button>
             {message.analysis_result && (
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-3 text-xs hover:bg-green-50 hover:border-green-200 hover:text-green-600"
+                className="h-8 px-3 text-xs text-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={handleSaveCard}
                 disabled={isSavingCard}
               >
                 {isSavingCard ? (
                   <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <Save className="h-3 w-3 mr-1" />
+                  <Save className="h-3 w-3 mr-1 text-foreground" />
                 )}
                 保存卡片
               </Button>

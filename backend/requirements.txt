@@ -38,3 +38,6 @@ reportlab==4.0.7
 # 开发工具
 pytest==7.4.3
 pytest-asyncio==0.21.1
+black==23.12.1
+ruff==0.1.9
+mypy==1.7.1

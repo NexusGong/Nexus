@@ -1,0 +1,6 @@
+dist/
+node_modules/
+coverage/
+.vite/
+*.config.js
+*.config.cjs

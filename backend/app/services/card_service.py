@@ -16,7 +16,7 @@ class CardService:
         self.title_font_size = 24
         self.subtitle_font_size = 18
     
-    async def generate_card_image(self, card: AnalysisCard) -> bytes:
+    async def generate_card_image(self, card: AnalysisCard, user_timezone: Optional[str] = None) -> bytes:
         """
         生成分析卡片图片 - 完全匹配前端Dialog详情页面
         
@@ -652,7 +652,7 @@ class CardService:
             logger.error(f"文本换行失败: {e}")
             return [text]
     
-    async def generate_card_pdf(self, card: AnalysisCard) -> bytes:
+    async def generate_card_pdf(self, card: AnalysisCard, user_timezone: Optional[str] = None) -> bytes:
         """
         生成分析卡片PDF
         

@@ -47,6 +47,13 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 94.1%;
   }
+  
+  /* 主题切换瞬时禁用过渡，确保渲染速度一致 */
+  .theme-changing *,
+  .theme-changing *::before,
+  .theme-changing *::after {
+    transition: none !important;
+  }
 }
 
 @layer base {

@@ -23,6 +23,7 @@ export default function ChatInterface() {
   const [inputValue, setInputValue] = useState('')
   const [isComposing, setIsComposing] = useState(false)
   const [showContextMode, setShowContextMode] = useState(false)
+  const [pendingContextMode, setPendingContextMode] = useState<'general'|'work'|'intimate'|'social'>('general')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
   const {
@@ -192,9 +193,9 @@ export default function ChatInterface() {
     <div className="flex flex-col h-full">
 
             {/* 消息列表 */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto bg-background">
               {currentMessages.length > 0 ? (
-                <div className="flex-1 overflow-y-auto bg-white">
+                <div className="flex-1 overflow-y-auto">
                   <div className="max-w-4xl mx-auto p-4">
                     <MessageList 
                       messages={currentMessages} 
@@ -205,13 +206,13 @@ export default function ChatInterface() {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-full bg-white">
+                <div className="flex items-center justify-center h-full bg-background">
                   <div className="text-center max-w-md p-8">
                     <div className="w-20 h-20 mx-auto mb-6 bg-blue-50 rounded-full flex items-center justify-center">
                       <MessageSquare className="h-10 w-10 text-blue-500" />
                     </div>
-                    <h3 className="text-2xl font-semibold mb-4 text-gray-900">开始新的对话</h3>
-                    <p className="text-gray-600 mb-8 leading-relaxed text-base">
+                    <h3 className="text-2xl font-semibold mb-4 text-foreground">开始新的对话</h3>
+                    <p className="text-muted-foreground mb-8 leading-relaxed text-base">
                       上传聊天截图或直接输入文字内容，AI将为你进行多维度分析
                     </p>
                   </div>
@@ -221,28 +222,22 @@ export default function ChatInterface() {
 
 
       {/* 输入区域 - 完全复刻豆包 */}
-      <div className="p-4 bg-white border-t border-gray-200">
+      <div className="p-4 bg-background border-t border">
         <div className="max-w-4xl mx-auto">
           {/* 分析模式选择器 */}
           {showContextMode && (
-            <div className="mb-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="mb-3 p-4 bg-muted rounded-lg border">
               <div className="mb-3">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">选择分析模式</h4>
-                <p className="text-xs text-gray-600">不同的模式会影响AI的分析重点和回复建议</p>
+                <h4 className="text-sm font-medium text-foreground mb-2">选择分析模式</h4>
+                <p className="text-xs text-muted-foreground">不同的模式会影响AI的分析重点和回复建议</p>
               </div>
               <ContextModeSelector
-                selectedMode={currentConversation?.context_mode || 'general'}
+                selectedMode={currentConversation?.context_mode || pendingContextMode}
                 onModeChange={(mode) => {
                   if (currentConversation) {
                     setCurrentConversation({ ...currentConversation, context_mode: mode })
                   } else {
-                    // 如果没有对话，先创建一个
-                    conversationApi.createConversation({
-                      title: '新对话',
-                      context_mode: mode
-                    }).then(conv => {
-                      setCurrentConversation(conv)
-                    })
+                    setPendingContextMode(mode)
                   }
                   setShowContextMode(false)
                   toast({
@@ -256,7 +251,7 @@ export default function ChatInterface() {
           )}
           
           {/* 豆包输入框 - 完全复刻 */}
-          <div className="flex items-center bg-white border border-gray-300 rounded-full px-4 py-3 shadow-sm focus-within:shadow-md focus-within:border-blue-500 transition-all">
+          <div className="flex items-center bg-card border border-input rounded-full px-4 py-3 shadow-sm focus-within:shadow-md focus-within:border-ring transition-all">
             {/* 左侧功能按钮 */}
             <div className="flex items-center gap-3 mr-3">
               <MultiImageUploader
@@ -278,7 +273,7 @@ export default function ChatInterface() {
                 onCompositionStart={() => setIsComposing(true)}
                 onCompositionEnd={() => setIsComposing(false)}
                 placeholder="输入消息..."
-                className="min-h-[24px] max-h-[120px] resize-none border-0 bg-transparent p-0 text-base placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-[24px] max-h-[120px] resize-none border-0 bg-transparent p-0 text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={isAnalyzing}
               />
             </div>
@@ -286,13 +281,13 @@ export default function ChatInterface() {
             {/* 右侧操作按钮 */}
             <div className="flex items-center gap-2 ml-3">
               {/* 当前模式显示 */}
-              {(currentConversation?.context_mode || 'general') && (
+              {(currentConversation?.context_mode || pendingContextMode) && (
                 <div className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-full border border-blue-200">
-                  {(currentConversation?.context_mode || 'general') === 'work' ? '工作模式' :
-                   (currentConversation?.context_mode || 'general') === 'intimate' ? '亲密模式' :
-                   (currentConversation?.context_mode || 'general') === 'social' ? '社交模式' :
-                   (currentConversation?.context_mode || 'general') === 'general' ? '通用模式' :
-                   (currentConversation?.context_mode || 'general')}
+                  {(currentConversation?.context_mode || pendingContextMode) === 'work' ? '工作模式' :
+                   (currentConversation?.context_mode || pendingContextMode) === 'intimate' ? '亲密模式' :
+                   (currentConversation?.context_mode || pendingContextMode) === 'social' ? '社交模式' :
+                   (currentConversation?.context_mode || pendingContextMode) === 'general' ? '通用模式' :
+                   (currentConversation?.context_mode || pendingContextMode)}
                 </div>
               )}
               
@@ -302,7 +297,7 @@ export default function ChatInterface() {
                 size="sm"
                 onClick={() => setShowContextMode(!showContextMode)}
                 disabled={isAnalyzing}
-                className="h-9 w-9 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full"
+                className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full"
                 title="选择分析模式"
               >
                 <Settings className="h-5 w-5" />

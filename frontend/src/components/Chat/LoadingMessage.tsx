@@ -36,7 +36,7 @@ export default function LoadingMessage({ className }: LoadingMessageProps) {
 
       {/* 加载消息内容 */}
       <div className="flex flex-col gap-1 max-w-[80%] items-start">
-        <div className="px-4 py-3 rounded-2xl rounded-bl-sm bg-gray-100 text-gray-900 text-sm leading-relaxed">
+        <div className="px-4 py-3 rounded-2xl rounded-bl-sm bg-muted text-foreground text-sm leading-relaxed">
           <div className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
             <span>{loadingSteps[currentStep]}</span>

@@ -17,7 +17,7 @@ export default function MessageList({ messages, onRegenerateAnalysis }: MessageL
   }, [messages])
 
   return (
-    <div className="flex-1 overflow-y-auto bg-white">
+    <div className="flex-1 overflow-y-auto bg-background">
       <div className="max-w-4xl mx-auto p-4">
         {messages.map((message, index) => (
           <div

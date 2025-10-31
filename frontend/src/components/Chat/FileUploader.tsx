@@ -67,7 +67,7 @@ export default function FileUploader({ disabled }: FileUploaderProps) {
         size="icon"
         onClick={() => fileInputRef.current?.click()}
         disabled={disabled || isUploading}
-        className="h-9 w-9 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full"
+        className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full"
         title="上传文件"
       >
         {isUploading ? (

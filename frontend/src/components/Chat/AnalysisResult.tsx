@@ -50,8 +50,8 @@ export default function AnalysisResultComponent({ analysis, suggestions }: Analy
     switch (sentiment) {
       case 'positive': return 'bg-green-100 text-green-800 border-green-200'
       case 'negative': return 'bg-red-100 text-red-800 border-red-200'
-      case 'neutral': return 'bg-gray-100 text-gray-800 border-gray-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    case 'neutral': return 'bg-muted text-foreground border'
+    default: return 'bg-muted text-foreground border'
     }
   }
 
@@ -62,7 +62,7 @@ export default function AnalysisResultComponent({ analysis, suggestions }: Analy
       '请求帮助': 'bg-yellow-100 text-yellow-800 border-yellow-200',
       '社交互动': 'bg-purple-100 text-purple-800 border-purple-200',
       '工作相关': 'bg-indigo-100 text-indigo-800 border-indigo-200',
-      '默认': 'bg-gray-100 text-gray-800 border-gray-200'
+    '默认': 'bg-muted text-foreground border'
     }
     return colors[intent as keyof typeof colors] || colors['默认']
   }

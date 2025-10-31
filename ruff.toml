@@ -1,0 +1,13 @@
+line-length = 100
+extend-select = ["E", "F", "I", "B", "UP", "C90"]
+ignore = [
+  "E203", # whitespace before ':' (conflicts with black)
+  "E266", # too many leading '#' for block comment
+]
+
+[lint.isort]
+known-first-party = ["app"]
+profile = "black"
+
+[format]
+docstring-code-format = true

@@ -133,6 +133,7 @@ export default function Sidebar() {
     } finally {
       setIsDeleting(false)
       setConversationToDelete(null)
+      setDeleteDialogOpen(false)
     }
   }
 
