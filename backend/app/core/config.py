@@ -35,11 +35,6 @@ class Settings(BaseSettings):
     doubao_api_url: str = Field(description="豆包API URL")
     doubao_model: str = Field(default="doubao-seed-1-6-vision-250815", description="豆包模型名称")
 
-    # 可选的OCR提供方与火山引擎配置（用于兼容 .env 中的额外字段）
-    ocr_provider: str | None = Field(default=None, description="OCR提供方标识，可选")
-    volc_access_key: str | None = Field(default=None, description="火山引擎AK，可选")
-    volc_secret_key: str | None = Field(default=None, description="火山引擎SK，可选")
-    volc_region: str | None = Field(default=None, description="火山引擎Region，可选")
 
     # 文件上传配置
     max_file_size: int = Field(default=10485760, description="最大文件大小(字节)")  # 10MB
@@ -70,6 +65,7 @@ class Settings(BaseSettings):
 
 # 全局配置实例（导出给外部使用）
 settings = Settings()
+
 
 
 

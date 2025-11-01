@@ -4,10 +4,8 @@
 """
 
 import base64
-import httpx
 from typing import Dict, Any, Optional
 import os
-from loguru import logger
 from app.config import settings
 from app.schemas.analysis import OCRResponse
 import json as _json
@@ -206,90 +204,6 @@ class DoubaoOCRService:
             logger.error(f"批量OCR识别失败: {e}")
             raise Exception(f"图片识别失败: {str(e)}")
 
-    async def _extract_with_volc_ocr(
-        self,
-        images_data: list[bytes],
-        image_formats: list[str]
-    ) -> OCRResponse:
-        """
-        使用火山引擎专用OCR接口进行识别，并重建为与现有前端一致的结构。
-        文档: https://www.volcengine.com/docs/86081/1660260
-        """
-        import time
-        t0 = time.perf_counter()
-        try:
-            # 延用服务器端优化，降低体积
-            optimized = [self._optimize_image_bytes(b, f)[0] for b, f in zip(images_data, image_formats)]
-            # 调用火山引擎SDK
-            # 优先使用SDK通用入口（与文档一致），避免直接签名差异
-            ak = settings.volc_access_key
-            sk = settings.volc_secret_key
-            if not ak or not sk:
-                raise Exception("缺少火山引擎AK/SK配置")
-            try:
-                if isinstance(sk, str) and sk.endswith("="):
-                    import base64 as _b64
-                    dec = _b64.b64decode(sk).decode('utf-8')
-                    if dec:
-                        sk = dec
-            except Exception:
-                pass
-
-            # 暂以通用文字识别为例（具体Action以文档为准）
-            # 单/多图：逐张调用后合并（专线一般较快）
-            import base64 as _b64
-            all_blocks = []
-            for data in optimized:
-                b64 = _b64.b64encode(data).decode('utf-8')
-                req = {
-                    "req_key": "ocr_general",  # 详见文档 https://www.volcengine.com/docs/86081/1660261
-                    "image_base64": b64,
-                }
-                t_api0 = time.perf_counter()
-                resp = self._volc_common_interface(req, ak, sk)
-                t_api1 = time.perf_counter()
-                logger.info(f"[OCR][volc] 单图OCR耗时: {(t_api1 - t_api0):.2f}s")
-
-                # 解析返回结构（以下字段名需与文档对齐，这里做常见兼容）
-                data = resp.get("Result", resp.get("data", {}))
-                words_result = data.get("Words", data.get("words_result", data.get("ocr_words", [])))
-                # 统一提取为 [ { text, bbox:{x,y,w,h} } ]
-                for w in words_result:
-                    text = w.get("Text") or w.get("text") or w.get("words") or ""
-                    box = w.get("Polygon") or w.get("bbox") or w.get("position") or {}
-                    if isinstance(box, dict):
-                        x = box.get("x") or box.get("left") or 0
-                        y = box.get("y") or box.get("top") or 0
-                        width = box.get("width") or box.get("w") or 0
-                        height = box.get("height") or box.get("h") or 0
-                    elif isinstance(box, list) and len(box) >= 4:
-                        # 多边形点，粗略取包围盒
-                        xs = [p[0] for p in box if isinstance(p, (list, tuple)) and len(p) >= 2]
-                        ys = [p[1] for p in box if isinstance(p, (list, tuple)) and len(p) >= 2]
-                        if xs and ys:
-                            x = min(xs); y = min(ys)
-                            width = max(xs) - x; height = max(ys) - y
-                        else:
-                            x=y=width=height=0
-                    else:
-                        x = y = 0
-                        width = height = 0
-                    all_blocks.append({"text": text, "x": x, "y": y, "w": width, "h": height})
-
-            # 将文字块聚合为对话气泡并区分左右
-            structured_msgs, plain_text = self._rebuild_bubbles(all_blocks)
-
-            metadata = {
-                "participants": ["己方", "对方"],
-                "structured_messages": structured_msgs,
-                "provider": "volc_ocr",
-            }
-            t1 = time.perf_counter()
-            logger.info(f"[OCR][volc] 总耗时: {(t1 - t0):.2f}s; 块数={len(all_blocks)}")
-            return OCRResponse(text=plain_text, confidence=0.9, language="中文", metadata=metadata)
-        except Exception as e:
-            logger.error(f"火山OCR失败: {e}")
-            raise
 
     def _rebuild_bubbles(self, blocks: list[dict]) -> tuple[list[dict], str]:
         """
@@ -335,82 +249,6 @@ class DoubaoOCRService:
 
         plain = "\n\n".join([m["text"] for m in messages])
         return messages, plain
-
-    def _volc_common_interface(self, body: dict, ak: str, sk: str) -> dict:
-        """优先使用 SDK BaseService 调用视觉OCR；失败则回退到 SignerV4 REST。"""
-        host = "visual.volcengineapi.com"
-        try:
-            from volcengine.ServiceInfo import ServiceInfo
-            from volcengine.ApiInfo import ApiInfo
-            from volcengine.BaseService import BaseService
-
-            protocol = "https"
-            timeout = 30
-            service_info = ServiceInfo(
-                host,
-                {"Content-Type": "application/json; charset=utf-8"},
-                {"region": settings.volc_region or "cn-north-1", "service_name": "visual"},
-                timeout,
-                timeout,
-                protocol
-            )
-            api_info = {
-                "OcrGeneral": ApiInfo(
-                    "POST",
-                    "/",
-                    {"Action": "OcrGeneral", "Version": "2020-08-26"},
-                    {},
-                    {}
-                )
-            }
-            svc = BaseService(service_info, api_info)
-            svc.set_ak(ak)
-            svc.set_sk(sk)
-            return svc.json("OcrGeneral", body)
-        except Exception as e:
-            logger.warning(f"[OCR][volc] BaseService路径不可用，将回退SignerV4直连: {e}")
-            # 回退：SignerV4 直连
-            import requests
-            try:
-                from volcengine.auth.SignerV4 import SignerV4
-            except Exception as e2:
-                raise Exception(f"缺少SignerV4: {e2}")
-            endpoint = f"https://{host}/"
-            query = {"Action": "OcrGeneral", "Version": "2020-08-26"}
-            payload = _json.dumps(body, ensure_ascii=False)
-            headers = {
-                "Content-Type": "application/json; charset=utf-8",
-                "Host": host,
-            }
-            signer = SignerV4()
-            # 兼容常见签名用法: request 参数字典
-            req = {
-                "service": "visual",
-                "region": settings.volc_region or "cn-north-1",
-                "method": "POST",
-                "host": host,
-                "path": "/",
-                "params": query,
-                "headers": headers,
-                "body": payload,
-            }
-            try:
-                signer.sign(req, ak, sk)
-            except TypeError:
-                # 部分版本是 signer.sign(request) 然后再 set ak/sk
-                try:
-                    signer.set_ak(ak)
-                    signer.set_sk(sk)
-                    signer.sign(req)
-                except Exception as e3:
-                    raise Exception(f"SignerV4签名失败: {e3}")
-            url = endpoint + "?" + "&".join([f"{k}={query[k]}" for k in sorted(query)])
-            resp = requests.post(url, headers=req.get("headers", headers), data=payload, timeout=30)
-            resp.raise_for_status()
-            try:
-                return resp.json()
-            except Exception:
-                return {"raw": resp.text}
 
     def _optimize_image_bytes(self, image_bytes: bytes, image_format: str) -> tuple[bytes, str, dict]:
         """

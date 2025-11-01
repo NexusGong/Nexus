@@ -21,6 +21,7 @@
 ### 后端
 - **框架**: FastAPI + SQLAlchemy + SQLite
 - **AI服务**: 豆包API（图片OCR）+ DeepSeek API（内容分析）
+- **截图服务**: Playwright（后端渲染导出PNG图片，全局浏览器实例复用）
 - **认证**: JWT Token
 - **文档**: 自动生成API文档
 
@@ -36,6 +37,7 @@
 - Python 3.11+
 - Node.js 18+
 - Conda (推荐)
+- Playwright 浏览器（首次使用需安装，详见下方说明）
 
 ### 一键设置
 ```bash
@@ -59,6 +61,8 @@ conda activate nexus-chat-analysis
 ```bash
 cd backend
 pip install -r requirements.txt
+# 首次使用需安装 Playwright 浏览器
+python -m playwright install chromium
 cp .env.example .env
 # 编辑 .env 文件，配置API密钥
 ```
@@ -95,9 +99,12 @@ bash start_frontend.sh or npm run dev
 ### 新增与重要变更
 
 #### 导出长图（2025-10-31）
-- 导出由后端 Playwright 渲染生成高质量 PNG，版式与前端 Dialog 一致。
-- 首次导出需安装浏览器：`python -m playwright install chromium`。
-- PDF 导出已下线。
+- **技术方案**: 后端使用 Playwright 渲染 HTML 生成高质量 PNG 图片
+- **性能优化**: 全局浏览器实例复用，导出速度优化至 1-2 秒
+- **版式一致**: 生成的图片版式与前端 Dialog 完全一致
+- **文件名**: 智能文件名（主题+时间），支持中文，符合 RFC 5987 标准
+- **安装要求**: 首次使用需安装 Playwright 浏览器：`python -m playwright install chromium`
+- **已下线**: PDF 导出功能已移除
 
 #### 新增API（2025-10-29）
 
@@ -147,7 +154,26 @@ DEEPSEEK_API_BASE=https://api.deepseek.com
 DOUBAO_API_KEY=your_doubao_api_key
 DOUBAO_API_URL=https://ark.cn-beijing.volces.com/api/v3/chat/completions
 DOUBAO_MODEL=doubao-seed-1-6-vision-250815
+
+# JWT密钥（必需）
+SECRET_KEY=your_secret_key_here
 ```
+
+### Playwright 浏览器安装
+首次使用图片导出功能前，需要安装 Playwright 浏览器：
+
+```bash
+# 激活conda环境
+conda activate nexus-chat-analysis
+
+# 安装 Chromium 浏览器
+python -m playwright install chromium
+```
+
+**注意**: 
+- 浏览器安装只需执行一次
+- 安装完成后，浏览器实例会在应用启动时自动初始化并全局复用
+- 生产环境建议使用 `--no-sandbox` 参数（已在代码中配置）
 
 ### 服务地址
 - 前端: http://localhost:5173
@@ -164,6 +190,10 @@ Nexus/
 │   │   ├── models/            # 数据模型
 │   │   ├── schemas/           # Pydantic模式
 │   │   ├── services/          # 业务逻辑
+│   │   │   ├── ai_service.py       # AI分析服务
+│   │   │   ├── ocr_service.py      # OCR识别服务
+│   │   │   ├── card_service.py     # 卡片业务逻辑
+│   │   │   └── screenshot_service.py # Playwright截图服务
 │   │   ├── utils/             # 工具函数
 │   │   ├── config.py          # 配置管理
 │   │   ├── database.py        # 数据库连接
@@ -212,14 +242,14 @@ Nexus/
 - **专业得体型**: 正式专业的回复风格
 
 ### 3. 分析卡片系统
-- **精美设计**: 现代化的卡片界面
-- **图片导出**: 支持PNG图片导出（Playwright渲染）
-- **智能文件名**: 导出文件使用主题+时间格式命名
-- **标签管理**: 支持标签分类和搜索
-- **收藏功能**: 重要卡片收藏管理
+- **精美设计**: 现代化的卡片界面，完整展示分析结果和回复建议
+- **图片导出**: 后端 Playwright 渲染生成高质量 PNG 图片（2倍设备像素比，支持长图）
+- **性能优化**: 全局浏览器实例复用，导出速度快（1-2秒）
+- **智能文件名**: 导出文件使用主题+时间格式命名，支持中文文件名
+- **时区支持**: 文件名时间使用用户本地时区，格式为 RFC 5987 标准
+- **导出统计**: 自动记录导出次数和最后导出时间
 - **一键保存**: 分析结果可直接保存为卡片
-- **卡片管理**: 支持重命名、删除等操作
-- **时区支持**: 文件名时间使用用户本地时区
+- **卡片管理**: 支持重命名、删除、搜索等操作
 
 ### 4. 对话管理系统
 - **最近对话**: 显示历史对话列表
@@ -242,6 +272,9 @@ conda activate nexus-chat-analysis
 
 # 进入后端目录
 cd backend
+
+# 首次使用需安装 Playwright 浏览器
+python -m playwright install chromium
 
 # 启动开发服务器
 python run.py
