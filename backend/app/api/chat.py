@@ -4,7 +4,7 @@
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.api.deps import get_current_user_optional
@@ -316,6 +316,7 @@ async def extract_text_from_image(
 @router.post("/ocr/batch", response_model=OCRResponse)
 async def extract_text_from_images_batch(
     files: List[UploadFile] = File(...),
+    mode: str = Form("fast"),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
@@ -323,6 +324,7 @@ async def extract_text_from_images_batch(
     
     Args:
         files: 图片文件列表
+        mode: 识别模式，'fast'为极速模式（百度OCR），'quality'为性能模式（豆包OCR）
         current_user: 当前用户（可选）
         
     Returns:
@@ -377,9 +379,9 @@ async def extract_text_from_images_batch(
             image_formats.append(file_extension)
         
         t1 = time.monotonic()
-        logger.info(f"批量OCR: 预处理用时 {(t1-t0):.3f}s, 共 {len(images_data)} 张")
+        logger.info(f"批量OCR: 预处理用时 {(t1-t0):.3f}s, 共 {len(images_data)} 张, 模式={mode}")
         # 批量OCR识别
-        ocr_result = await ocr_service.extract_text_from_images(images_data, image_formats)
+        ocr_result = await ocr_service.extract_text_from_images(images_data, image_formats, mode=mode)
         t2 = time.monotonic()
         logger.info(f"批量OCR: 模型用时 {(t2-t1):.3f}s, 总用时 {(t2-t0):.3f}s")
         logger.info(f"批量OCR识别完成: {len(files)} 张图片")

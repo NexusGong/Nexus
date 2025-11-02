@@ -142,7 +142,7 @@ export const chatApi = {
   },
 
   // OCR识别（多张图片批量）
-  extractTextFromImages: async (files: File[]): Promise<{
+  extractTextFromImages: async (files: File[], mode: string = 'fast'): Promise<{
     text: string
     confidence: number
     language: string
@@ -152,6 +152,7 @@ export const chatApi = {
     files.forEach((file, index) => {
       formData.append(`files`, file)
     })
+    formData.append('mode', mode)
     
     const response = await api.post('/chat/ocr/batch', formData, {
       headers: {

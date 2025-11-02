@@ -30,11 +30,15 @@ class Settings(BaseSettings):
     deepseek_api_key: str = Field(description="DeepSeek API密钥")
     deepseek_api_base: str = Field(default="https://api.deepseek.com", description="DeepSeek API基础URL")
 
-    # 豆包API配置
+    # 百度OCR配置（用于快速OCR识别）
+    baidu_app_id: str = Field(default="", description="百度OCR AppID")
+    baidu_api_key: str = Field(default="", description="百度OCR API Key")
+    baidu_secret_key: str = Field(default="", description="百度OCR Secret Key")
+
+    # 豆包API配置（用于OCR后处理，判断发言人位置）
     doubao_api_key: str = Field(description="豆包API密钥")
     doubao_api_url: str = Field(description="豆包API URL")
     doubao_model: str = Field(default="doubao-seed-1-6-vision-250815", description="豆包模型名称")
-
 
     # 文件上传配置
     max_file_size: int = Field(default=10485760, description="最大文件大小(字节)")  # 10MB

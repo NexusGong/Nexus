@@ -28,3 +28,5 @@ def register_exception_handlers(app: FastAPI, *, debug: bool) -> None:
 
 
 
+
+

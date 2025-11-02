@@ -8,7 +8,9 @@ import {
   Loader2,
   Check,
   Eye,
-  Download
+  Download,
+  Zap,
+  Sparkles
 } from 'lucide-react'
 import { chatApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
@@ -167,6 +169,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
   const [showTextSelection, setShowTextSelection] = useState(false)
   const [textSegments, setTextSegments] = useState<TextSegment[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const [ocrMode, setOcrMode] = useState<'fast' | 'quality'>('fast')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
@@ -265,9 +268,9 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
       const processingImages = images.map(img => ({ ...img, isProcessing: true }))
       setImages(processingImages)
 
-      // 使用批量识别API
+      // 使用批量识别API，传递模式参数
       const files = images.map(img => img.file)
-      const ocrResult = await chatApi.extractTextFromImages(files)
+      const ocrResult = await chatApi.extractTextFromImages(files, ocrMode)
       
       // 更新所有图片状态
       setImages(prev => prev.map(img => ({ 
@@ -317,7 +320,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
       setIsProcessing(false)
       setIsUploading(false)
     }
-  }, [images, toast])
+  }, [images, ocrMode, toast])
 
   // 确认选择的文本
   const confirmTextSelection = useCallback(() => {
@@ -458,6 +461,110 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                 ))}
               </div>
               
+              {/* 识别模式选择 */}
+              <div className="space-y-3 border-t border-b py-4">
+                <div className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                  选择识别模式
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* 极速模式 */}
+                  <button
+                    onClick={() => setOcrMode('fast')}
+                    className={cn(
+                      "relative p-4 rounded-2xl border transition-all duration-300 text-left group overflow-hidden",
+                      ocrMode === 'fast'
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/80 shadow-md ring-2 ring-blue-500/30"
+                        : "border-border bg-card hover:border-blue-300 hover:bg-accent"
+                    )}
+                  >
+                    {/* 选中指示器 */}
+                    {ocrMode === 'fast' && (
+                      <div className="absolute top-2 right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
+                        <Check className="h-4 w-4 text-white" />
+                      </div>
+                    )}
+                    <div className="flex items-start gap-3 relative">
+                      <div className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300",
+                        ocrMode === 'fast'
+                          ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md"
+                          : "bg-muted text-muted-foreground group-hover:bg-blue-100 group-hover:text-blue-600 dark:group-hover:bg-blue-950 dark:group-hover:text-blue-400"
+                      )}>
+                        <Zap className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0 pt-0.5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={cn(
+                            "font-semibold text-sm transition-colors duration-200",
+                            ocrMode === 'fast'
+                              ? "text-blue-700 dark:text-blue-300"
+                              : "text-foreground"
+                          )}>
+                            极速模式
+                          </span>
+                        </div>
+                        <p className={cn(
+                          "text-xs leading-relaxed transition-colors duration-200",
+                          ocrMode === 'fast'
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-muted-foreground"
+                        )}>
+                          简单识别文本,识别速度快,适合快速预览
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  {/* 性能模式 */}
+                  <button
+                    onClick={() => setOcrMode('quality')}
+                    className={cn(
+                      "relative p-4 rounded-2xl border transition-all duration-300 text-left group overflow-hidden",
+                      ocrMode === 'quality'
+                        ? "border-purple-500 bg-purple-50 dark:bg-purple-950/80 shadow-md ring-2 ring-purple-500/30"
+                        : "border-border bg-card hover:border-purple-300 hover:bg-accent"
+                    )}
+                  >
+                    {/* 选中指示器 */}
+                    {ocrMode === 'quality' && (
+                      <div className="absolute top-2 right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center shadow-md">
+                        <Check className="h-4 w-4 text-white" />
+                      </div>
+                    )}
+                    <div className="flex items-start gap-3 relative">
+                      <div className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300",
+                        ocrMode === 'quality'
+                          ? "bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-md"
+                          : "bg-muted text-muted-foreground group-hover:bg-purple-100 group-hover:text-purple-600 dark:group-hover:bg-purple-950 dark:group-hover:text-purple-400"
+                      )}>
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0 pt-0.5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={cn(
+                            "font-semibold text-sm transition-colors duration-200",
+                            ocrMode === 'quality'
+                              ? "text-purple-700 dark:text-purple-300"
+                              : "text-foreground"
+                          )}>
+                            性能模式
+                          </span>
+                        </div>
+                        <p className={cn(
+                          "text-xs leading-relaxed transition-colors duration-200",
+                          ocrMode === 'quality'
+                            ? "text-purple-600 dark:text-purple-400"
+                            : "text-muted-foreground"
+                        )}>
+                          AI图片多维度理解，识别效果好，等待时间长
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+              
               {/* 操作按钮 */}
               <div className="flex gap-3">
                 <Button
@@ -470,7 +577,12 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                 <Button
                   onClick={startOCRProcessing}
                   disabled={isProcessing}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  className={cn(
+                    "flex-1 text-white shadow-lg hover:shadow-xl transition-all duration-200",
+                    ocrMode === 'fast'
+                      ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                      : "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                  )}
                 >
                   {isProcessing ? (
                     <>
@@ -615,15 +727,15 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
 
                         <div className="flex-1 min-w-0">
                           {/* 顶部徽章：镜像对齐 */}
-                          <div className={cn('flex items-center gap-2 mb-2', isRight ? 'justify-end' : 'justify-start')}>
-                            <div className={cn('px-2 py-1 text-xs rounded-full', rolePillClasses)}>
-                              {segment.speakerName || segment.source}
-                            </div>
+                          <div className={cn('flex items-center gap-2 mb-2', isRight ? 'justify-end flex-row-reverse' : 'justify-start')}>
                             {segment.selected && (
                               <div className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">
                                 已选择
                               </div>
                             )}
+                            <div className={cn('px-2 py-1 text-xs rounded-full', rolePillClasses)}>
+                              {segment.speakerName || segment.source}
+                            </div>
                           </div>
                           <div className={cn('text-sm text-foreground whitespace-pre-wrap leading-relaxed', isRight ? 'text-right' : 'text-left')}>
                             {segment.text}
@@ -637,11 +749,11 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
             </div>
 
             {/* 底部操作按钮 */}
-            <div className="flex justify-between items-center pt-4 border-t border">
-              <div className="text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pt-4 border-t border">
+              <div className="text-sm text-muted-foreground order-2 sm:order-1">
                 选择完成后，文本将自动填入输入框
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 justify-end order-1 sm:order-2">
                 <Button 
                   variant="outline" 
                   onClick={cancelSelection}

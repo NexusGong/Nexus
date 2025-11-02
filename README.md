@@ -113,7 +113,8 @@ bash start_frontend.sh or npm run dev
 POST /api/chat/ocr/batch
 Content-Type: multipart/form-data
 
-files: File[]  # 多张聊天截图，默认最多4张
+files: File[]  # 多张聊天截图，最多10张
+mode: str      # 识别模式，'fast'为极速模式（百度OCR），'quality'为性能模式（豆包OCR），默认为'fast'
 ```
 响应：与单图OCR一致，`metadata` 中包含（若模型输出结构化成功）：
 ```json
@@ -134,11 +135,15 @@ files: File[]  # 多张聊天截图，默认最多4张
 - `DOUBAO_MODEL`
 
 可选（兼容）：
+- `BAIDU_APP_ID`、`BAIDU_API_KEY`、`BAIDU_SECRET_KEY`（极速模式需要）
 - `OCR_PROVIDER`、`VOLC_ACCESS_KEY`、`VOLC_SECRET_KEY`、`VOLC_REGION`
 
 ### 识别体验优化
-- 多图批量识别，端到端目标5-10秒；后端输出阶段计时日志（编码/构包/发送/解析/总计）。
-- 前端等待界面为居中模态，成功不再弹toast；段落选择界面按己方/对方镜像排布。
+- **双模式支持**：极速模式（百度OCR）和性能模式（豆包OCR）可选
+- 多图批量识别，支持最多10张图片同时识别
+- 前端等待界面为居中模态，成功不再弹toast
+- 段落选择界面按己方/对方镜像排布，清晰展示对话结构
+- 模式选择界面：在图片预览时可直接选择识别模式，界面友好
 
 ## 🔧 配置说明
 
@@ -150,10 +155,15 @@ files: File[]  # 多张聊天截图，默认最多4张
 DEEPSEEK_API_KEY=your_deepseek_api_key
 DEEPSEEK_API_BASE=https://api.deepseek.com
 
-# 豆包大模型配置
+# 豆包大模型配置（必需）
 DOUBAO_API_KEY=your_doubao_api_key
 DOUBAO_API_URL=https://ark.cn-beijing.volces.com/api/v3/chat/completions
 DOUBAO_MODEL=doubao-seed-1-6-vision-250815
+
+# 百度OCR配置（极速模式需要，可选）
+BAIDU_APP_ID=your_baidu_app_id
+BAIDU_API_KEY=your_baidu_api_key
+BAIDU_SECRET_KEY=your_baidu_secret_key
 
 # JWT密钥（必需）
 SECRET_KEY=your_secret_key_here
@@ -259,9 +269,14 @@ Nexus/
 
 ### 5. 图片识别功能
 - **OCR识别**: 自动识别聊天截图中的文字
+- **识别模式**: 支持两种识别模式
+  - **极速模式**（百度OCR）：识别速度快，等待时间短，适合快速预览
+  - **性能模式**（豆包OCR）：识别效果好，准确度高，等待时间较长
+- **批量识别**: 支持同时识别多张图片（最多10张）
 - **拖拽上传**: 支持拖拽上传图片
 - **格式支持**: 支持JPG、PNG、GIF、WebP等格式
 - **预览功能**: 实时预览上传的图片
+- **结构化输出**: 自动识别发言人位置（己方/对方），返回结构化消息列表
 
 ## 🔄 开发工作流
 
