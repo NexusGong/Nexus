@@ -44,3 +44,6 @@ mypy==1.7.1
 
 # 无头浏览器截图
 playwright==1.49.0
+
+# 火山引擎SDK
+volcengine>=1.0.0

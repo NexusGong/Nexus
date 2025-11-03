@@ -49,6 +49,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️  API配置验证失败: {e}")
     
+    # 验证OCR服务配置
+    try:
+        from app.services.ocr_service import ocr_service
+        if ocr_service.use_volc_ocr:
+            logger.info("✅ 火山引擎OCR服务已就绪")
+        elif ocr_service.use_baidu_ocr:
+            logger.info("✅ 百度OCR服务已就绪")
+        else:
+            logger.warning("⚠️  OCR服务未配置，图片识别功能不可用")
+    except Exception as e:
+        logger.warning(f"⚠️  OCR服务检查失败: {e}")
+    
     yield
     
     # 关闭时执行

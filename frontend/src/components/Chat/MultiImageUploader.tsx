@@ -466,7 +466,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                 <div className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
                   选择识别模式
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                   {/* 极速模式 */}
                   <button
                     onClick={() => setOcrMode('fast')}
@@ -562,6 +562,8 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                       </div>
                     </div>
                   </button>
+                  
+                  
                 </div>
               </div>
               
@@ -581,7 +583,9 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                     "flex-1 text-white shadow-lg hover:shadow-xl transition-all duration-200",
                     ocrMode === 'fast'
                       ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-                      : "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                      : ocrMode === 'quality'
+                      ? "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                      : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
                   )}
                 >
                   {isProcessing ? (

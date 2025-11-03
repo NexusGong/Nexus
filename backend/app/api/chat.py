@@ -324,7 +324,7 @@ async def extract_text_from_images_batch(
     
     Args:
         files: 图片文件列表
-        mode: 识别模式，'fast'为极速模式（百度OCR），'quality'为性能模式（豆包OCR）
+        mode: 识别模式，'fast'为极速模式（火山引擎OCR），'quality'为性能模式（豆包OCR）
         current_user: 当前用户（可选）
         
     Returns:
