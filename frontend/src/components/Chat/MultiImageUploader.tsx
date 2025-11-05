@@ -169,6 +169,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
   const [showTextSelection, setShowTextSelection] = useState(false)
   const [textSegments, setTextSegments] = useState<TextSegment[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
   const [ocrMode, setOcrMode] = useState<'fast' | 'quality'>('fast')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
@@ -263,6 +264,9 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
 
     setIsProcessing(true)
     setIsUploading(true)
+    // 创建可取消控制器
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
 
     try {
       const processingImages = images.map(img => ({ ...img, isProcessing: true }))
@@ -270,7 +274,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
 
       // 使用批量识别API，传递模式参数
       const files = images.map(img => img.file)
-      const ocrResult = await chatApi.extractTextFromImages(files, ocrMode)
+      const ocrResult = await chatApi.extractTextFromImages(files, ocrMode, abortRef.current.signal)
       
       // 更新所有图片状态
       setImages(prev => prev.map(img => ({ 
@@ -283,13 +287,14 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
       let allSegments: TextSegment[] = []
       const structured = (ocrResult as any)?.metadata?.structured_messages as Array<any> | undefined
       if (structured && Array.isArray(structured) && structured.length > 0) {
+        const hasRight = structured.some(m => (m.speaker_side === 'right') || (m.speaker_name === '我'))
         allSegments = structured.map((m, idx) => ({
           id: `batch-${idx}`,
           text: String(m.text || '').trim(),
           selected: true,
-          source: m.speaker_side === 'right' ? '己方' : '对方',
-          speakerSide: m.speaker_side === 'right' ? 'right' : 'left',
-          speakerName: m.speaker_name || (m.speaker_side === 'right' ? '己方' : '对方')
+          source: hasRight ? (m.speaker_side === 'right' ? '己方' : '对方') : '对方',
+          speakerSide: hasRight ? (m.speaker_side === 'right' ? 'right' : 'left') : 'left',
+          speakerName: hasRight ? (m.speaker_name || (m.speaker_side === 'right' ? '己方' : '对方')) : (m.speaker_name || '对方')
         })).filter(s => s.text.length > 0)
       } else {
         // 退化为本地解析
@@ -303,12 +308,16 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
 
     } catch (error: any) {
       console.error('批量OCR处理失败:', error)
+      if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+        toast({ title: '已取消识别', duration: 1500 })
+      } else {
       toast({
         title: "批量识别失败",
         description: "服务繁忙或网络波动，请稍后重试",
         variant: "destructive",
         duration: 3000
       })
+      }
       
       // 更新所有图片状态为失败
       setImages(prev => prev.map(img => ({ 
@@ -366,6 +375,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
 
   return (
     <>
+      {/* 顶部全局识别进度条（已移除，根据需求仅保留卡片内进度与取消） */}
       {/* 上传按钮 */}
       <Button
         variant="ghost"
@@ -449,11 +459,9 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                         </div>
                       )}
                       {image.error && (
-                        <div className="absolute inset-0 bg-red-500 bg-opacity-60 flex items-center justify-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <X className="h-5 w-5 text-white" />
-                            <span className="text-xs text-white font-medium">失败</span>
-                          </div>
+                        <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 border border-red-300 shadow-sm">
+                          <X className="h-3.5 w-3.5 text-red-600" />
+                          <span className="text-[11px] leading-none text-red-600 font-medium">识别失败</span>
                         </div>
                       )}
                     </div>
@@ -569,37 +577,63 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
               
               {/* 操作按钮 */}
               <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setImages([])}
-                  className="flex-1"
-                >
-                  重新选择
-                </Button>
-                <Button
-                  onClick={startOCRProcessing}
-                  disabled={isProcessing}
-                  className={cn(
-                    "flex-1 text-white shadow-lg hover:shadow-xl transition-all duration-200",
-                    ocrMode === 'fast'
-                      ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-                      : ocrMode === 'quality'
-                      ? "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
-                      : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
-                  )}
-                >
-                  {isProcessing ? (
-                    <>
+                {isUploading ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        abortRef.current?.abort()
+                        setIsUploading(false)
+                        setIsProcessing(false)
+                        setImages(prev => prev.map(img => ({ ...img, isProcessing: false })))
+                        toast({ title: '已取消识别', duration: 1500 })
+                      }}
+                      className="flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 dark:text-red-400 dark:hover:bg-red-950/20"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      取消识别
+                    </Button>
+                    <Button
+                      disabled
+                      className={cn(
+                        "flex-1 text-white shadow-lg cursor-not-allowed",
+                        ocrMode === 'fast'
+                          ? "bg-gradient-to-r from-blue-500 to-blue-600"
+                          : ocrMode === 'quality'
+                          ? "bg-gradient-to-r from-purple-500 to-purple-600"
+                          : "bg-gradient-to-r from-orange-500 to-orange-600"
+                      )}
+                    >
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       正在识别...
-                    </>
-                  ) : (
-                    <>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => setImages([])}
+                      className="flex-1"
+                    >
+                      重新选择
+                    </Button>
+                    <Button
+                      onClick={startOCRProcessing}
+                      disabled={isProcessing}
+                      className={cn(
+                        "flex-1 text-white shadow-lg hover:shadow-xl transition-all duration-200",
+                        ocrMode === 'fast'
+                          ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                          : ocrMode === 'quality'
+                          ? "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                          : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+                      )}
+                    >
                       <Eye className="h-4 w-4 mr-2" />
                       开始识别
-                    </>
-                  )}
-                </Button>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </Card>
@@ -653,8 +687,28 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                     }}
                   ></div>
                 </div>
-                <p className="text-sm text-muted-foreground font-medium">
-                  识别进度: {images.length - images.filter(img => img.isProcessing).length} / {images.length}
+                <p className="text-sm text-muted-foreground font-medium flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
+                  <span className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-600" />
+                    <span>
+                      识别进度: {images.length - images.filter(img => img.isProcessing).length} / {images.length}
+                    </span>
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      abortRef.current?.abort()
+                      setIsUploading(false)
+                      setIsProcessing(false)
+                      setImages(prev => prev.map(img => ({ ...img, isProcessing: false })))
+                      toast({ title: '已取消识别', duration: 1500 })
+                    }}
+                    className="h-7 px-3 rounded-full border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 dark:text-red-400 dark:hover:bg-red-950/20"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1.5" />
+                    取消识别
+                  </Button>
                 </p>
               </div>
             </div>
@@ -753,14 +807,20 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
             </div>
 
             {/* 底部操作按钮 */}
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pt-4 border-t border">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pt-4 pb-4 px-4 -mx-6 border-t border-border">
               <div className="text-sm text-muted-foreground order-2 sm:order-1">
                 选择完成后，文本将自动填入输入框
               </div>
               <div className="flex gap-3 justify-end order-1 sm:order-2">
                 <Button 
                   variant="outline" 
-                  onClick={cancelSelection}
+                  onClick={() => {
+                    // 若正在上传，先取消网络请求
+                    if (isUploading) {
+                      abortRef.current?.abort()
+                    }
+                    cancelSelection()
+                  }}
                   className="px-6"
                 >
                   取消

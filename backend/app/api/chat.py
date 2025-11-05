@@ -14,7 +14,8 @@ from app.models.message import Message
 from app.schemas.conversation import ConversationCreate, ConversationResponse, ConversationListResponse
 from app.schemas.message import ChatRequest, ChatResponse, MessageResponse
 from app.schemas.analysis import OCRRequest, OCRResponse
-from app.services.ocr_service import ocr_service
+from app.services.ocr_service import volc_ocr_service, doubao_ocr_service
+from fastapi import Request
 from app.services.ai_service import ai_service
 from loguru import logger
 
@@ -269,7 +270,8 @@ async def analyze_chat(
 async def extract_text_from_image(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    request: Request = None
 ):
     """
     从上传的图片中提取文字内容
@@ -296,8 +298,23 @@ async def extract_text_from_image(
         # 获取文件扩展名
         file_extension = file.filename.split('.')[-1].lower() if file.filename else 'png'
         
-        # 调用OCR服务
-        ocr_result = await ocr_service.extract_text_from_image(image_data, file_extension)
+        # 构造取消事件，监听客户端断开
+        import asyncio
+        cancel_event = asyncio.Event()
+        async def _watch_disconnect():
+            try:
+                if request is None:
+                    return
+                while True:
+                    if await request.is_disconnected():
+                        cancel_event.set()
+                        break
+                    await asyncio.sleep(0.2)
+            except Exception:
+                pass
+        asyncio.create_task(_watch_disconnect())
+        # 调用OCR服务（单张默认走火山）
+        ocr_result = await volc_ocr_service.extract_text_from_image(image_data, file_extension, cancel_event=cancel_event)
         
         logger.info(f"OCR识别完成: {file.filename}")
         
@@ -317,7 +334,8 @@ async def extract_text_from_image(
 async def extract_text_from_images_batch(
     files: List[UploadFile] = File(...),
     mode: str = Form("fast"),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    request: Request = None
 ):
     """
     批量OCR识别多张图片
@@ -380,8 +398,26 @@ async def extract_text_from_images_batch(
         
         t1 = time.monotonic()
         logger.info(f"批量OCR: 预处理用时 {(t1-t0):.3f}s, 共 {len(images_data)} 张, 模式={mode}")
-        # 批量OCR识别
-        ocr_result = await ocr_service.extract_text_from_images(images_data, image_formats, mode=mode)
+        # 批量OCR识别：按mode选择服务
+        # 构造取消事件，监听客户端断开
+        import asyncio
+        cancel_event = asyncio.Event()
+        async def _watch_disconnect():
+            try:
+                if request is None:
+                    return
+                while True:
+                    if await request.is_disconnected():
+                        cancel_event.set()
+                        break
+                    await asyncio.sleep(0.2)
+            except Exception:
+                pass
+        asyncio.create_task(_watch_disconnect())
+        if mode == "quality":
+            ocr_result = await doubao_ocr_service._extract_with_doubao_ocr(images_data, image_formats, cancel_event=cancel_event)
+        else:
+            ocr_result = await volc_ocr_service.extract_text_from_images(images_data, image_formats, cancel_event=cancel_event)
         t2 = time.monotonic()
         logger.info(f"批量OCR: 模型用时 {(t2-t1):.3f}s, 总用时 {(t2-t0):.3f}s")
         logger.info(f"批量OCR识别完成: {len(files)} 张图片")

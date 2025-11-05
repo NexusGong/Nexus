@@ -142,7 +142,7 @@ export const chatApi = {
   },
 
   // OCR识别（多张图片批量）
-  extractTextFromImages: async (files: File[], mode: string = 'fast'): Promise<{
+  extractTextFromImages: async (files: File[], mode: string = 'fast', signal?: AbortSignal): Promise<{
     text: string
     confidence: number
     language: string
@@ -158,6 +158,7 @@ export const chatApi = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      signal,
     })
     return response.data
   },
