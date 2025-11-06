@@ -5,22 +5,24 @@
 ## ✨ 功能特性
 
 - 📱 **多端支持**: 网页版 + PWA移动端 + iOS App
-- 🖼️ **图片识别**: 支持聊天截图OCR识别（豆包API）
+- 🖼️ **图片识别**: 支持聊天截图OCR识别（豆包OCR / 火山引擎OCR）
+- 🔢 **多图OCR实时进度**: 在“识别中”卡片内以 x/N 与进度条实时显示（如 0/3 → 3/3），与实际处理保持同步
+- ♻️ **稳定性增强**: 后端对多图序列化识别并内置指数退避重试；前端单图顺序调用与轻量重试，显著降低“单图成功、多图失败”问题
+- 🧩 **对话结构准确**: 强化时间戳过滤与气泡合并收敛策略，避免将时间戳误判为己方、以及将多个对方气泡意外合并
+- ➕ **预览页添加图片卡片**: 预览网格末尾提供与缩略图同尺寸的“添加图片”卡片（中间加号），不必重走上传流程；保留工具栏“上传图片”
 - 🤖 **智能分析**: 多维度分析聊天内容（DeepSeek API）
 - 💡 **回复建议**: 提供多种回复思路和示例
 - 📊 **分析卡片**: 生成精美的分析结果卡片
-- 📤 **导出功能**: 支持图片导出（后端Playwright渲染，智能文件名：主题+时间）
-- 🎨 **现代UI**: ChatGPT风格的聊天界面
-- 🔄 **实时分析**: 流式响应和实时分析结果
+- 📤 **导出功能**: 支持图片导出（后端 Playwright 渲染，智能文件名：主题+时间）
+- 🎨 **现代UI**: 现代化聊天界面，暗色模式友好
 - 💾 **一键保存**: 分析结果可直接保存为卡片
 - 🗂️ **卡片管理**: 支持重命名、删除、搜索分析卡片
 - 🕒 **时区支持**: 所有时间显示匹配用户本地时区
 
 ## 🛠️ 技术栈
 
-### 后端
 - **框架**: FastAPI + SQLAlchemy + SQLite
-- **AI服务**: 豆包API（图片OCR）+ DeepSeek API（内容分析）
+- **AI服务**: 豆包OCR / 火山引擎OCR（图片识别）+ DeepSeek API（内容分析）
 - **截图服务**: Playwright（后端渲染导出PNG图片，全局浏览器实例复用）
 - **认证**: JWT Token
 - **文档**: 自动生成API文档
@@ -98,6 +100,18 @@ bash start_frontend.sh or npm run dev
 
 ### 新增与重要变更
 
+#### 多图OCR与识别体验（2025-11-06）
+- 前端：
+  - 识别进度在处理中卡片内以“x/N + 进度条”实时展示，严格与单图顺序请求对齐
+  - 预览网格新增“添加图片”卡片，点击复用统一隐藏文件输入；移除预览标题栏旧按钮；顶部工具栏“上传图片”保留
+  - 移除冗余/噪声的控制台输出，仅保留必要关系信息
+- 后端：
+  - 将多图 OCR 从并发改为序列化调用，适配 OCR SDK 并提升稳定性
+  - 为每张图引入最多 3 次指数退避 + 抖动重试，确保“单图成功、多图失败”问题显著缓解
+  - 降噪日志：保留 info/warning/error，去除过度 debug
+
+#### 导出长图（2025-10-31）
+
 #### 导出长图（2025-10-31）
 - **技术方案**: 后端使用 Playwright 渲染 HTML 生成高质量 PNG 图片
 - **性能优化**: 全局浏览器实例复用，导出速度优化至 1-2 秒
@@ -114,7 +128,7 @@ POST /api/chat/ocr/batch
 Content-Type: multipart/form-data
 
 files: File[]  # 多张聊天截图，最多10张
-mode: str      # 识别模式，'fast'为极速模式（百度OCR），'quality'为性能模式（豆包OCR），默认为'fast'
+provider: str  # 识别提供方，可选 'doubao' 或 'volc'
 ```
 响应：与单图OCR一致，`metadata` 中包含（若模型输出结构化成功）：
 ```json
@@ -134,16 +148,15 @@ mode: str      # 识别模式，'fast'为极速模式（百度OCR），'quality'
 - `DOUBAO_API_KEY` / `DOUBAO_API_URL`（如 `https://ark.cn-beijing.volces.com/api/v3/chat/completions`）
 - `DOUBAO_MODEL`
 
-可选（兼容）：
-- `BAIDU_APP_ID`、`BAIDU_API_KEY`、`BAIDU_SECRET_KEY`（极速模式需要）
-- `OCR_PROVIDER`、`VOLC_ACCESS_KEY`、`VOLC_SECRET_KEY`、`VOLC_REGION`
+可选：
+- `VOLC_ACCESS_KEY`、`VOLC_SECRET_KEY`、`VOLC_REGION`（直连火山引擎时使用）
 
 ### 识别体验优化
-- **双模式支持**：极速模式（百度OCR）和性能模式（豆包OCR）可选
-- 多图批量识别，支持最多10张图片同时识别
+- **提供方选择**：支持豆包OCR与火山引擎OCR
+- 多图顺序识别，实时进度（x/N + 进度条），失败轻量重试
 - 前端等待界面为居中模态，成功不再弹toast
 - 段落选择界面按己方/对方镜像排布，清晰展示对话结构
-- 模式选择界面：在图片预览时可直接选择识别模式，界面友好
+- 在图片预览时可直接选择识别提供方
 
 ## 🔧 配置说明
 
@@ -155,15 +168,15 @@ mode: str      # 识别模式，'fast'为极速模式（百度OCR），'quality'
 DEEPSEEK_API_KEY=your_deepseek_api_key
 DEEPSEEK_API_BASE=https://api.deepseek.com
 
-# 豆包大模型配置（必需）
+# 豆包/火山引擎配置（至少启用其一）
 DOUBAO_API_KEY=your_doubao_api_key
 DOUBAO_API_URL=https://ark.cn-beijing.volces.com/api/v3/chat/completions
 DOUBAO_MODEL=doubao-seed-1-6-vision-250815
 
-# 百度OCR配置（极速模式需要，可选）
-BAIDU_APP_ID=your_baidu_app_id
-BAIDU_API_KEY=your_baidu_api_key
-BAIDU_SECRET_KEY=your_baidu_secret_key
+# 火山引擎（可选）
+VOLC_ACCESS_KEY=your_volc_ak
+VOLC_SECRET_KEY=your_volc_sk
+VOLC_REGION=cn-north-1
 
 # JWT密钥（必需）
 SECRET_KEY=your_secret_key_here
@@ -268,15 +281,13 @@ Nexus/
 - **即时更新**: 新对话立即显示在侧边栏
 
 ### 5. 图片识别功能
-- **OCR识别**: 自动识别聊天截图中的文字
-- **识别模式**: 支持两种识别模式
-  - **极速模式**（百度OCR）：识别速度快，等待时间短，适合快速预览
-  - **性能模式**（豆包OCR）：识别效果好，准确度高，等待时间较长
-- **批量识别**: 支持同时识别多张图片（最多10张）
+- **OCR识别**: 自动识别聊天截图中的文字（豆包OCR / 火山引擎OCR）
+- **提供方选择**: 预览阶段即可选择使用豆包或火山引擎
+- **多图识别**: 顺序逐张识别，UI 实时展示 0/N → N/N 进度，失败自动重试
 - **拖拽上传**: 支持拖拽上传图片
-- **格式支持**: 支持JPG、PNG、GIF、WebP等格式
-- **预览功能**: 实时预览上传的图片
-- **结构化输出**: 自动识别发言人位置（己方/对方），返回结构化消息列表
+- **格式支持**: JPG、PNG、GIF、WebP
+- **预览功能**: 实时预览上传的图片；预览网格末尾“添加图片”卡片便捷追加
+- **结构化输出**: 识别发言人（己方/对方），并优化时间戳过滤与气泡合并，降低误判与过度合并
 
 ## 🔄 开发工作流
 
@@ -344,7 +355,7 @@ npx cap run ios
 - **[📖 文档索引](docs/README.md)** - 完整的项目文档导航
 - **[📝 文档变更日志](docs/DOCUMENTATION_CHANGELOG.md)** - 文档更新记录
 - **[🚀 部署指南](docs/DEPLOYMENT.md)** - 详细的部署说明
-- **[📋 开发记录](docs/DAILY_SUMMARY_2024_10_28.md)** - 最新开发记录
+- **[📋 开发记录](docs/DAILY_SUMMARY_2025_11_06.md)** - 最新开发记录
 
 ## 🧹 维护与清理
 
