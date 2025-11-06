@@ -10,7 +10,8 @@ import {
   Eye,
   Download,
   Zap,
-  Sparkles
+  Sparkles,
+  Plus
 } from 'lucide-react'
 import { chatApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
@@ -258,6 +259,11 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
     })
   }, [])
 
+  // 前端可视进度
+  const [overallProgressPct, setOverallProgressPct] = useState(0)
+  const [overallProgressCount, setOverallProgressCount] = useState(0)
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   // 开始OCR识别（批量处理）
   const startOCRProcessing = useCallback(async () => {
     if (images.length === 0) return
@@ -272,23 +278,86 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
       const processingImages = images.map(img => ({ ...img, isProcessing: true }))
       setImages(processingImages)
 
-      // 使用批量识别API，传递模式参数
-      const files = images.map(img => img.file)
-      const ocrResult = await chatApi.extractTextFromImages(files, ocrMode, abortRef.current.signal)
-      
-      // 更新所有图片状态
-      setImages(prev => prev.map(img => ({ 
-        ...img, 
-        ocrResult, 
-        isProcessing: false 
-      })))
+      // 初始化进度（前端可视进度，后端完成时再拉满100%）
+      setOverallProgressPct(0)
+      setOverallProgressCount(0)
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current)
+      const total = images.length || 1
+      const step = Math.max(0.5, 90 / (total * 30))
+      progressTimerRef.current = setInterval(() => {
+        setOverallProgressPct(prev => {
+          const next = Math.min(90, prev + step)
+          const count = Math.min(total - 1, Math.floor((next / 100) * total))
+          setOverallProgressCount(count)
+          return next
+        })
+      }, 200)
 
-      // 若后端提供结构化消息，优先使用
+      // 逐张识别，实时更新进度与计数
+      const aggregatedStructured: any[] = []
+      const aggregatedTexts: string[] = []
+      // 单张识别封装（优先单张接口；失败回退到批量接口的单张）
+      const doSingleOCR = async (file: File) => {
+        // 每张最多2次客户端重试（与服务端重试叠加，尽量保证成功）
+        const maxClientRetries = 2
+        let lastErr: any = null
+        for (let r = 0; r <= maxClientRetries; r++) {
+          try {
+            // 优先走单张接口
+            const res1 = await chatApi.extractTextFromImage(file)
+            return res1
+          } catch (e1: any) {
+            lastErr = e1
+            try {
+              // 回退到批量接口的单张（保留取消 signal）
+              const res2 = await chatApi.extractTextFromImages([file], ocrMode, abortRef.current.signal)
+              return res2
+            } catch (e2: any) {
+              lastErr = e2
+              // 轻微退避再重试
+              await new Promise(res => setTimeout(res, 200 + r * 150))
+            }
+          }
+        }
+        throw lastErr
+      }
+
+      for (let i = 0; i < total; i++) {
+        const file = images[i].file
+        const singleResult = await doSingleOCR(file)
+        // 更新该图片的处理状态与结果
+        setImages(prev => prev.map((img, idx) => idx === i ? ({ ...img, ocrResult: singleResult, isProcessing: false }) : img))
+        // 汇总结构化或文本
+        const structuredOnce = (singleResult as any)?.metadata?.structured_messages as Array<any> | undefined
+        if (structuredOnce && Array.isArray(structuredOnce) && structuredOnce.length > 0) {
+          structuredOnce.forEach(m => aggregatedStructured.push(m))
+        } else if (singleResult?.text) {
+          aggregatedTexts.push(singleResult.text)
+        }
+        // 实时更新进度
+        if (progressTimerRef.current) {
+          clearInterval(progressTimerRef.current)
+          progressTimerRef.current = null
+        }
+        const done = i + 1
+        setOverallProgressCount(done)
+        setOverallProgressPct(Math.round((done / total) * 100))
+
+        // 为避免命中服务端限流，两个请求之间加入轻微延时
+        if (i < total - 1) {
+          await new Promise(res => setTimeout(res, 120))
+        }
+      }
+
+      // 识别完成，拉满进度（双保险）
+      setOverallProgressPct(100)
+      setOverallProgressCount(total)
+
+      // 汇总段落
       let allSegments: TextSegment[] = []
-      const structured = (ocrResult as any)?.metadata?.structured_messages as Array<any> | undefined
-      if (structured && Array.isArray(structured) && structured.length > 0) {
-        const hasRight = structured.some(m => (m.speaker_side === 'right') || (m.speaker_name === '我'))
-        allSegments = structured.map((m, idx) => ({
+      if (aggregatedStructured.length > 0) {
+        const hasRight = aggregatedStructured.some(m => (m.speaker_side === 'right') || (m.speaker_name === '我'))
+        allSegments = aggregatedStructured.map((m: any, idx: number) => ({
           id: `batch-${idx}`,
           text: String(m.text || '').trim(),
           selected: true,
@@ -296,9 +365,8 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
           speakerSide: hasRight ? (m.speaker_side === 'right' ? 'right' : 'left') : 'left',
           speakerName: hasRight ? (m.speaker_name || (m.speaker_side === 'right' ? '己方' : '对方')) : (m.speaker_name || '对方')
         })).filter(s => s.text.length > 0)
-      } else {
-        // 退化为本地解析
-        allSegments = parseChatSegments(ocrResult.text, 'batch', 1)
+      } else if (aggregatedTexts.length > 0) {
+        allSegments = aggregatedTexts.flatMap((t, idx) => parseChatSegments(t, 'batch', idx + 1))
       }
 
       setTextSegments(allSegments)
@@ -326,6 +394,10 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
         isProcessing: false 
       })))
     } finally {
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current)
+        progressTimerRef.current = null
+      }
       setIsProcessing(false)
       setIsUploading(false)
     }
@@ -422,14 +494,16 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setImages([])}
-                  className="h-8 w-8 p-0 hover:bg-accent rounded-full"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setImages([])}
+                    className="h-8 w-8 p-0 hover:bg-accent rounded-full"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               
               {/* 图片缩略图网格 */}
@@ -467,6 +541,21 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                     </div>
                   </div>
                 ))}
+                {/* 添加图片卡片：紧跟在最新一张图片后，尺寸与缩略图一致 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.click()
+                    }
+                  }}
+                  className="relative group aspect-square rounded-xl overflow-hidden border-2 border-dashed border-muted-foreground/40 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors flex items-center justify-center"
+                >
+                  <div className="flex flex-col items-center justify-center text-muted-foreground group-hover:text-blue-600">
+                    <Plus className="h-8 w-8" />
+                    <span className="mt-1 text-xs font-medium">添加图片</span>
+                  </div>
+                </button>
               </div>
               
               {/* 识别模式选择 */}
@@ -683,7 +772,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                   <div 
                     className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500 ease-out"
                     style={{ 
-                      width: `${((images.length - images.filter(img => img.isProcessing).length) / images.length) * 100}%` 
+                      width: `${overallProgressPct}%` 
                     }}
                   ></div>
                 </div>
@@ -691,7 +780,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                   <span className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-600" />
                     <span>
-                      识别进度: {images.length - images.filter(img => img.isProcessing).length} / {images.length}
+                      识别进度: {overallProgressCount} / {images.length}
                     </span>
                   </span>
                   <Button
