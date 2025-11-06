@@ -40,8 +40,13 @@
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - 详细的部署指南，支持多种部署方式
 
 ### 📝 开发记录
-- **[DAILY_SUMMARY_2024_10_24.md](./DAILY_SUMMARY_2024_10_24.md)** - 2024年10月24日开发记录
-- **[DAILY_SUMMARY_2024_10_28.md](./DAILY_SUMMARY_2024_10_28.md)** - 2024年10月28日开发记录
+- **[DAILY_SUMMARY_2025_11_06.md](./DAILY_SUMMARY_2025_11_06.md)** - 2025年11月06日开发记录
+- **[DAILY_SUMMARY_2025_11_05.md](./DAILY_SUMMARY_2025_11_05.md)** - 2025年11月05日开发记录
+- **[DAILY_SUMMARY_2025_11_01.md](./DAILY_SUMMARY_2025_11_01.md)** - 2025年11月01日开发记录
+- **[DAILY_SUMMARY_2025_10_31.md](./DAILY_SUMMARY_2025_10_31.md)** - 2025年10月31日开发记录
+- **[DAILY_SUMMARY_2025_10_29.md](./DAILY_SUMMARY_2025_10_29.md)** - 2025年10月29日开发记录
+- **[DAILY_SUMMARY_2025_10_28.md](./DAILY_SUMMARY_2025_10_28.md)** - 2025年10月28日开发记录
+- **[DAILY_SUMMARY_2025_10_24.md](./DAILY_SUMMARY_2025_10_24.md)** - 2025年10月24日开发记录
 
 ## 🎯 快速导航
 
@@ -89,7 +94,7 @@
 
 ---
 
-**最后更新**: 2025年10月31日  
+**最后更新**: 2025年11月06日  
 **维护者**: 项目开发团队  
 **版本**: 1.0.1
 

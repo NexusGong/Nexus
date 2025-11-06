@@ -606,7 +606,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                             ? "text-blue-600 dark:text-blue-400"
                             : "text-muted-foreground"
                         )}>
-                          简单识别文本,识别速度快,适合快速预览
+                          简单识别文本,识别速度快,适合快速预览选择
                         </p>
                       </div>
                     </div>
@@ -654,7 +654,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                             ? "text-purple-600 dark:text-purple-400"
                             : "text-muted-foreground"
                         )}>
-                          AI图片多维度理解，识别效果好，等待时间长
+                          记录全面多维度理解，识别效果好，等待时间长
                         </p>
                       </div>
                     </div>
