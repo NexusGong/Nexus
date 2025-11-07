@@ -138,3 +138,11 @@
   50% { border-color: hsl(var(--primary)); }
 }
 
+/* 侧边栏动画优化 */
+.sidebar-transition {
+  transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+

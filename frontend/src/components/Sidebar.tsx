@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useChatStore } from '@/store/chatStore'
+import { useAuthStore } from '@/store/authStore'
 import { conversationApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
@@ -38,18 +39,55 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const { toast } = useToast()
 
-  // 加载对话列表
+  // 加载对话列表（仅登录用户）
+  const { isAuthenticated } = useAuthStore()
+  
   useEffect(() => {
     const loadConversations = async () => {
+      // 只有登录用户才能看到对话列表
+      if (!isAuthenticated) {
+        setConversations([])
+        return
+      }
+      
       try {
         const response = await conversationApi.getConversations(1, 20)
-        setConversations(response.conversations)
+        // 合并后端返回的对话和本地存储的对话
+        const currentConversations = useChatStore.getState().conversations || []
+        const backendConversations = response.conversations || []
+        
+        // 创建一个 Map 来去重（以对话 ID 为键）
+        const conversationMap = new Map<number, any>()
+        
+        // 先添加本地存储的对话（保留历史记录）
+        currentConversations.forEach((conv: any) => {
+          if (conv && conv.id) {
+            conversationMap.set(conv.id, conv)
+          }
+        })
+        
+        // 然后添加后端返回的对话（更新最新数据）
+        backendConversations.forEach((conv: any) => {
+          if (conv && conv.id) {
+            conversationMap.set(conv.id, conv)
+          }
+        })
+        
+        // 转换为数组并按更新时间排序
+        const mergedConversations = Array.from(conversationMap.values())
+          .sort((a, b) => {
+            const timeA = new Date(a.updated_at || a.created_at || 0).getTime()
+            const timeB = new Date(b.updated_at || b.created_at || 0).getTime()
+            return timeB - timeA
+          })
+        
+        setConversations(mergedConversations)
       } catch (error) {
         console.error('加载对话列表失败:', error)
       }
     }
     loadConversations()
-  }, [setConversations])
+  }, [setConversations, isAuthenticated])
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -65,7 +103,12 @@ export default function Sidebar() {
 
   const handleNewChat = () => {
     clearCurrentChat()
-    navigate('/chat')
+    // 如果未登录，导航到主页；如果已登录，导航到聊天页面
+    if (isAuthenticated) {
+      navigate('/chat')
+    } else {
+      navigate('/')
+    }
   }
 
   const handleConversationClick = (conversation: any) => {
@@ -159,18 +202,25 @@ export default function Sidebar() {
   ]
 
   return (
-    <div className={cn(
-      "flex flex-col bg-card border-r transition-all duration-300",
-      isCollapsed ? "w-16" : "w-72"
-    )}>
+    <div 
+      className={cn(
+        "flex flex-col bg-card border-r transition-[width] duration-300 ease-in-out will-change-[width]",
+        isCollapsed ? "w-16" : "w-72"
+      )}
+      style={{
+        backfaceVisibility: 'hidden',
+        transform: 'translateZ(0)',
+      }}
+    >
       {/* 头部 */}
       <div className="p-3 border-b">
         <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <h1 className="text-lg font-semibold text-foreground">
-              聊天分析
-            </h1>
-          )}
+          <h1 className={cn(
+            "text-lg font-semibold text-foreground transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap",
+            isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+          )}>
+            聊天分析
+          </h1>
           <Button
             variant="ghost"
             size="icon"
@@ -198,12 +248,21 @@ export default function Sidebar() {
                   isCollapsed && "justify-center"
                 )}>
                   <Icon className="h-4 w-4 flex-shrink-0" />
-                  {!isCollapsed && <span>{item.name}</span>}
+                  <span className={cn(
+                    "transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap",
+                    isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+                  )}>
+                    {item.name}
+                  </span>
                 </div>
                 
                 {/* 对话列表 */}
-                {!isCollapsed && (
-                  <div className="ml-7 space-y-0.5 max-h-[calc(100vh-60px)] overflow-y-auto">
+                <div className={cn(
+                  "ml-7 space-y-0.5 max-h-[calc(100vh-60px)] transition-all duration-300 ease-in-out",
+                  isCollapsed 
+                    ? "w-0 opacity-0 overflow-hidden pointer-events-none" 
+                    : "w-auto opacity-100 overflow-y-auto"
+                )}>
                     {(Array.isArray(conversations) ? conversations : []).slice(0, 20).map((conversation) => {
                       const isActive = location.pathname === `/chat/${conversation.id}`
                       const isEditing = editingConversation === conversation.id
@@ -310,7 +369,6 @@ export default function Sidebar() {
                       </p>
                     )}
                   </div>
-                )}
               </div>
             )
           }
@@ -329,7 +387,12 @@ export default function Sidebar() {
               )}
             >
               <Icon className="h-4 w-4 flex-shrink-0" />
-              {!isCollapsed && <span>{item.name}</span>}
+              <span className={cn(
+                "transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap",
+                isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+              )}>
+                {item.name}
+              </span>
             </Link>
           )
         })}

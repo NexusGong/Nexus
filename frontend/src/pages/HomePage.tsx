@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAuthStore } from '@/store/authStore'
 import { 
   MessageSquare, 
   FileText, 
@@ -10,6 +11,14 @@ import {
 } from 'lucide-react'
 
 export default function HomePage() {
+  const { isAuthenticated } = useAuthStore()
+  
+  // 如果用户已登录，重定向到聊天页面
+  // 注意：退出登录后应该显示欢迎界面，所以这里保留重定向逻辑
+  // 但退出登录时会导航到主页，此时 isAuthenticated 为 false，会显示欢迎界面
+  if (isAuthenticated) {
+    return <Navigate to="/chat" replace />
+  }
   const features = [
     {
       icon: Image,

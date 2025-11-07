@@ -7,7 +7,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.api.deps import get_current_user_optional
+from app.api.deps import get_current_user_optional, get_client_info
 from app.models.user import User
 from app.models.conversation import Conversation
 from app.models.message import Message
@@ -15,6 +15,11 @@ from app.schemas.conversation import ConversationCreate, ConversationResponse, C
 from app.schemas.message import ChatRequest, ChatResponse, MessageResponse
 from app.schemas.analysis import OCRRequest, OCRResponse
 from app.services.ocr_service import volc_ocr_service, doubao_ocr_service
+from app.services.usage_limit_service import (
+    check_ocr_limit, record_ocr_usage,
+    check_conversation_limit,
+    check_chat_analysis_limit, record_chat_analysis_usage
+)
 from fastapi import Request
 from app.services.ai_service import ai_service
 from loguru import logger
@@ -25,6 +30,7 @@ router = APIRouter(prefix="/api/chat", tags=["聊天"])
 @router.post("/conversations", response_model=ConversationResponse)
 async def create_conversation(
     conversation: ConversationCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
@@ -33,6 +39,7 @@ async def create_conversation(
     
     Args:
         conversation: 对话创建数据
+        request: FastAPI请求对象
         db: 数据库会话
         current_user: 当前用户（可选）
         
@@ -40,6 +47,16 @@ async def create_conversation(
         ConversationResponse: 创建的对话会话
     """
     try:
+        # 检查会话创建限制（仅非登录用户）
+        if not current_user:
+            ip_address, session_token = get_client_info(request)
+            can_create, count, limit = check_conversation_limit(current_user, ip_address, session_token, db)
+            if not can_create:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"非登录用户最多只能创建{limit}个会话，当前已有{count}个。请登录后继续使用。"
+                )
+        
         # 创建新对话
         db_conversation = Conversation(
             title=conversation.title,
@@ -57,6 +74,8 @@ async def create_conversation(
         
         return ConversationResponse.model_validate(db_conversation)
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"创建对话失败: {e}")
         raise HTTPException(
@@ -67,6 +86,7 @@ async def create_conversation(
 
 @router.get("/conversations", response_model=ConversationListResponse)
 async def get_conversations(
+    request: Request,
     page: int = 1,
     size: int = 20,
     db: Session = Depends(get_db),
@@ -76,6 +96,7 @@ async def get_conversations(
     获取对话会话列表
     
     Args:
+        request: FastAPI请求对象
         page: 页码
         size: 每页大小
         db: 数据库会话
@@ -85,6 +106,9 @@ async def get_conversations(
         ConversationListResponse: 对话列表
     """
     try:
+        # 获取客户端信息
+        ip_address, session_token = get_client_info(request)
+        
         # 构建查询
         query = db.query(Conversation).filter(Conversation.is_active == "active")
         
@@ -92,8 +116,24 @@ async def get_conversations(
         if current_user:
             query = query.filter(Conversation.user_id == current_user.id)
         else:
-            # 未登录用户只返回公开对话或临时对话
-            query = query.filter(Conversation.user_id.is_(None))
+            # 未登录用户只返回该 session_token 的对话
+            # 如果 session_token 为空，则只返回 session_token 为 NULL 的对话（历史数据）
+            # 如果 session_token 不为空，返回该 session_token 的对话或 session_token 为 NULL 的对话（历史数据）
+            if session_token:
+                from sqlalchemy import or_
+                query = query.filter(
+                    Conversation.user_id.is_(None),
+                    or_(
+                        Conversation.session_token == session_token,
+                        Conversation.session_token.is_(None)
+                    )
+                )
+            else:
+                # session_token 为空时，只返回 session_token 为 NULL 的对话
+                query = query.filter(
+                    Conversation.user_id.is_(None),
+                    Conversation.session_token.is_(None)
+                )
         
         # 分页查询
         total = query.count()
@@ -117,6 +157,7 @@ async def get_conversations(
 @router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
 async def get_conversation(
     conversation_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
@@ -125,6 +166,7 @@ async def get_conversation(
     
     Args:
         conversation_id: 对话ID
+        request: FastAPI请求对象
         db: 数据库会话
         current_user: 当前用户（可选）
         
@@ -132,6 +174,9 @@ async def get_conversation(
         ConversationResponse: 对话详情
     """
     try:
+        # 获取客户端信息
+        ip_address, session_token = get_client_info(request)
+        
         conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
         
         if not conversation:
@@ -141,11 +186,28 @@ async def get_conversation(
             )
         
         # 检查权限
-        if current_user and conversation.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="无权限访问此对话"
-            )
+        if current_user:
+            # 登录用户只能访问自己的对话
+            if conversation.user_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权限访问此对话"
+                )
+        else:
+            # 未登录用户只能访问自己的 session_token 的对话
+            # 如果对话的 session_token 为 NULL（历史数据），允许所有未登录用户访问
+            if conversation.user_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权限访问此对话"
+                )
+            # 如果对话的 session_token 为 NULL（历史数据），允许访问
+            # 如果对话的 session_token 不为 NULL，必须匹配
+            if conversation.session_token is not None and conversation.session_token != session_token:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权限访问此对话"
+                )
         
         return ConversationResponse.model_validate(conversation)
         
@@ -162,6 +224,7 @@ async def get_conversation(
 @router.post("/analyze", response_model=ChatResponse)
 async def analyze_chat(
     request: ChatRequest,
+    request_obj: Request,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
@@ -170,6 +233,7 @@ async def analyze_chat(
     
     Args:
         request: 聊天分析请求
+        request_obj: FastAPI请求对象
         db: 数据库会话
         current_user: 当前用户（可选）
         
@@ -183,6 +247,17 @@ async def analyze_chat(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="对话不存在"
+            )
+        
+        # 检查聊天分析次数限制
+        ip_address, session_token = get_client_info(request_obj)
+        can_analyze, used, limit = check_chat_analysis_limit(
+            current_user, request.conversation_id, ip_address, session_token, db
+        )
+        if not can_analyze:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"该会话今日分析次数已达上限（{limit}次），已使用{used}次。请登录后获得更多次数。"
             )
         
         # 保存用户消息
@@ -247,6 +322,11 @@ async def analyze_chat(
         
         db.commit()
         db.refresh(ai_message)
+        
+        # 记录聊天分析使用
+        record_chat_analysis_usage(
+            current_user, request.conversation_id, ip_address, session_token, db
+        )
         
         logger.info(f"聊天分析完成: 对话{request.conversation_id}")
         
@@ -398,6 +478,16 @@ async def extract_text_from_images_batch(
         
         t1 = time.monotonic()
         logger.info(f"批量OCR: 预处理用时 {(t1-t0):.3f}s, 共 {len(images_data)} 张, 模式={mode}")
+        
+        # 检查OCR使用次数限制
+        ip_address, session_token = get_client_info(request)
+        can_use, used, limit = check_ocr_limit(current_user, mode, ip_address, session_token, db)
+        if not can_use:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"今日{mode == 'fast' and '极速模式' or '性能模式'}OCR使用次数已达上限（{limit}次），已使用{used}次。请登录后获得更多次数。"
+            )
+        
         # 批量OCR识别：按mode选择服务
         # 构造取消事件，监听客户端断开
         import asyncio
@@ -422,6 +512,9 @@ async def extract_text_from_images_batch(
         logger.info(f"批量OCR: 模型用时 {(t2-t1):.3f}s, 总用时 {(t2-t0):.3f}s")
         logger.info(f"批量OCR识别完成: {len(files)} 张图片")
         
+        # 记录OCR使用
+        record_ocr_usage(current_user, mode, ip_address, session_token, db)
+        
         return ocr_result
         
     except HTTPException:
@@ -440,6 +533,7 @@ async def extract_text_from_images_batch(
 @router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
 async def get_conversation_messages(
     conversation_id: int,
+    request: Request,
     page: int = 1,
     size: int = 50,
     db: Session = Depends(get_db),
@@ -450,6 +544,7 @@ async def get_conversation_messages(
     
     Args:
         conversation_id: 对话ID
+        request: FastAPI请求对象
         page: 页码
         size: 每页大小
         db: 数据库会话
@@ -459,6 +554,9 @@ async def get_conversation_messages(
         List[MessageResponse]: 消息列表
     """
     try:
+        # 获取客户端信息
+        ip_address, session_token = get_client_info(request)
+        
         # 验证对话是否存在
         conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
         if not conversation:
@@ -468,11 +566,28 @@ async def get_conversation_messages(
             )
         
         # 检查权限
-        if current_user and conversation.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="无权限访问此对话"
-            )
+        if current_user:
+            # 登录用户只能访问自己的对话
+            if conversation.user_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权限访问此对话"
+                )
+        else:
+            # 未登录用户只能访问自己的 session_token 的对话
+            # 如果对话的 session_token 为 NULL（历史数据），允许所有未登录用户访问
+            if conversation.user_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权限访问此对话"
+                )
+            # 如果对话的 session_token 为 NULL（历史数据），允许访问
+            # 如果对话的 session_token 不为 NULL，必须匹配
+            if conversation.session_token is not None and conversation.session_token != session_token:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权限访问此对话"
+                )
         
         # 查询消息
         messages = db.query(Message).filter(

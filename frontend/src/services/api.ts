@@ -5,6 +5,7 @@ import type {
   AnalysisResult, 
   ResponseSuggestion 
 } from '@/store/chatStore'
+import { useAuthStore } from '@/store/authStore'
 
 // 创建axios实例
 const api = axios.create({
@@ -18,11 +19,19 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   (config) => {
-    // 可以在这里添加认证token
+    // 添加认证token
     const token = localStorage.getItem('auth_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    
+    // 添加session token（非登录用户使用）
+    const authStore = useAuthStore.getState()
+    const sessionToken = authStore.getSessionToken()
+    if (sessionToken) {
+      config.headers['X-Session-Token'] = sessionToken
+    }
+    
     return config
   },
   (error) => {
@@ -37,6 +46,23 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API请求错误:', error)
+    
+    // 处理401错误（未授权）
+    if (error.response?.status === 401) {
+      const url = error.config?.url || ''
+      
+      // 只有在获取用户信息失败时才自动退出登录
+      // 其他操作（如上传头像）只显示错误，不自动退出
+      if (url.includes('/auth/me')) {
+        // 清除过期的token
+        localStorage.removeItem('auth_token')
+        // 清除用户状态
+        const authStore = useAuthStore.getState()
+        authStore.logout()
+        console.error('认证失败，已退出登录')
+      }
+    }
+    
     return Promise.reject(error)
   }
 )
@@ -229,6 +255,58 @@ export const cardApi = {
   },
 
   // 导出卡片为PDF（已下线）
+}
+
+// 认证相关API
+export const authApi = {
+  // 发送验证码
+  sendCode: async (data: {
+    contact: string
+    code_type: 'register' | 'login'
+  }) => {
+    const response = await api.post('/auth/send-code', data)
+    return response.data
+  },
+
+  // 注册
+  register: async (data: {
+    contact: string
+    code: string
+    username: string
+  }) => {
+    const response = await api.post('/auth/register', data)
+    return response.data
+  },
+
+  // 登录
+  login: async (data: {
+    contact: string
+    code: string
+  }) => {
+    const response = await api.post('/auth/login', data)
+    return response.data
+  },
+
+  // 获取当前用户信息
+  getMe: async () => {
+    const response = await api.get('/auth/me')
+    return response.data
+  },
+
+  // 获取使用统计
+  getUsageStats: async () => {
+    const response = await api.get('/auth/usage-stats')
+    return response.data
+  },
+
+  // 更新用户资料
+  updateProfile: async (data: {
+    username?: string
+    avatar_url?: string
+  }) => {
+    const response = await api.put('/auth/profile', data)
+    return response.data
+  },
 }
 
 // 健康检查API

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import ChatInterface from '@/components/Chat/ChatInterface'
 import { useChatStore } from '@/store/chatStore'
+import { useAuthStore } from '@/store/authStore'
 import { conversationApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
 
 export default function ChatPage() {
   const { conversationId } = useParams()
+  const { isAuthenticated } = useAuthStore()
   const { 
     currentConversation, 
     setCurrentConversation,
@@ -18,6 +20,13 @@ export default function ChatPage() {
 
   useEffect(() => {
     const loadConversation = async () => {
+      // 如果未登录，清空对话数据
+      if (!isAuthenticated) {
+        setCurrentConversation(null)
+        setCurrentMessages([])
+        return
+      }
+
       if (conversationId) {
         try {
           setLoading(true)
@@ -46,7 +55,7 @@ export default function ChatPage() {
     }
 
     loadConversation()
-  }, [conversationId, setCurrentConversation, setCurrentMessages, setLoading, setError, toast])
+  }, [conversationId, isAuthenticated, setCurrentConversation, setCurrentMessages, setLoading, setError, toast])
 
   return (
     <div className="h-full min-h-0">

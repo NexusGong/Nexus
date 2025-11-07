@@ -13,8 +13,9 @@ import {
   Sparkles,
   Plus
 } from 'lucide-react'
-import { chatApi } from '@/services/api'
+import { chatApi, authApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
+import { useAuthStore } from '@/store/authStore'
 import { cn } from '@/lib/utils'
 
 // 动态OCR处理文本组件
@@ -174,6 +175,20 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
   const [ocrMode, setOcrMode] = useState<'fast' | 'quality'>('fast')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+  const { usageStats, isAuthenticated, setUsageStats } = useAuthStore()
+
+  // 当登录状态变化时，重新获取使用统计
+  useEffect(() => {
+    const loadUsageStats = async () => {
+      try {
+        const stats = await authApi.getUsageStats()
+        setUsageStats(stats)
+      } catch (error) {
+        console.error('获取使用统计失败:', error)
+      }
+    }
+    loadUsageStats()
+  }, [isAuthenticated, setUsageStats])
 
   // 轻量压缩：>1.5MB 时压到 webp，最长边 1400，质量 0.82
   const compressImage = useCallback(async (file: File): Promise<File> => {
@@ -227,6 +242,14 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
       return
     }
 
+    // 加载使用统计信息
+    try {
+      const stats = await authApi.getUsageStats()
+      setUsageStats(stats)
+    } catch (error) {
+      console.error('获取使用统计失败:', error)
+    }
+
     const prepared = await Promise.all(
       candidates.map(async (file) => {
         const id = Math.random().toString(36).substr(2, 9)
@@ -237,7 +260,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
     )
 
     setImages((prev) => [...prev, ...prepared])
-  }, [compressImage, toast])
+  }, [compressImage, toast, setUsageStats])
 
   // 处理文件输入变化
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,6 +290,29 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
   // 开始OCR识别（批量处理）
   const startOCRProcessing = useCallback(async () => {
     if (images.length === 0) return
+
+    // 检查使用次数限制
+    try {
+      const stats = await authApi.getUsageStats()
+      setUsageStats(stats)
+      
+      const modeKey = ocrMode === 'fast' ? 'ocr_fast' : 'ocr_quality'
+      const remaining = stats[modeKey]?.remaining || 0
+      
+      if (remaining <= 0) {
+        toast({
+          title: "使用次数已达上限",
+          description: isAuthenticated 
+            ? `今日${ocrMode === 'fast' ? '极速' : '性能'}模式OCR使用次数已达上限，请明天再试。`
+            : `非登录用户${ocrMode === 'fast' ? '极速' : '性能'}模式OCR使用次数已达上限，请登录后获得更多次数。`,
+          variant: "destructive",
+          duration: 4000
+        })
+        return
+      }
+    } catch (error) {
+      console.error('获取使用统计失败:', error)
+    }
 
     setIsProcessing(true)
     setIsUploading(true)
@@ -310,7 +356,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
             lastErr = e1
             try {
               // 回退到批量接口的单张（保留取消 signal）
-              const res2 = await chatApi.extractTextFromImages([file], ocrMode, abortRef.current.signal)
+              const res2 = await chatApi.extractTextFromImages([file], ocrMode, abortRef.current?.signal)
               return res2
             } catch (e2: any) {
               lastErr = e2
@@ -362,7 +408,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
           text: String(m.text || '').trim(),
           selected: true,
           source: hasRight ? (m.speaker_side === 'right' ? '己方' : '对方') : '对方',
-          speakerSide: hasRight ? (m.speaker_side === 'right' ? 'right' : 'left') : 'left',
+          speakerSide: (hasRight ? (m.speaker_side === 'right' ? 'right' : 'left') : 'left') as 'left' | 'right',
           speakerName: hasRight ? (m.speaker_name || (m.speaker_side === 'right' ? '己方' : '对方')) : (m.speaker_name || '对方')
         })).filter(s => s.text.length > 0)
       } else if (aggregatedTexts.length > 0) {
@@ -371,6 +417,14 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
 
       setTextSegments(allSegments)
       setShowTextSelection(true)
+
+      // 更新使用统计
+      try {
+        const stats = await authApi.getUsageStats()
+        setUsageStats(stats)
+      } catch (error) {
+        console.error('更新使用统计失败:', error)
+      }
 
       // 成功后不弹出提示框，由后续界面引导
 
@@ -401,7 +455,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
       setIsProcessing(false)
       setIsUploading(false)
     }
-  }, [images, ocrMode, toast])
+  }, [images, ocrMode, toast, isAuthenticated, setUsageStats])
 
   // 确认选择的文本
   const confirmTextSelection = useCallback(() => {
@@ -599,6 +653,18 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                           )}>
                             极速模式
                           </span>
+                          {usageStats && (
+                            <span className={cn(
+                              "text-xs px-2 py-0.5 rounded-full font-medium transition-colors duration-200",
+                              ocrMode === 'fast'
+                                ? usageStats.ocr_fast.remaining > 0
+                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                                  : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                                : "bg-muted text-muted-foreground"
+                            )}>
+                              {usageStats.ocr_fast.remaining}/{usageStats.ocr_fast.limit}
+                            </span>
+                          )}
                         </div>
                         <p className={cn(
                           "text-xs leading-relaxed transition-colors duration-200",
@@ -647,6 +713,18 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                           )}>
                             性能模式
                           </span>
+                          {usageStats && (
+                            <span className={cn(
+                              "text-xs px-2 py-0.5 rounded-full font-medium transition-colors duration-200",
+                              ocrMode === 'quality'
+                                ? usageStats.ocr_quality.remaining > 0
+                                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
+                                  : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                                : "bg-muted text-muted-foreground"
+                            )}>
+                              {usageStats.ocr_quality.remaining}/{usageStats.ocr_quality.limit}
+                            </span>
+                          )}
                         </div>
                         <p className={cn(
                           "text-xs leading-relaxed transition-colors duration-200",
@@ -654,7 +732,7 @@ export default function MultiImageUploader({ onTextExtracted, disabled }: MultiI
                             ? "text-purple-600 dark:text-purple-400"
                             : "text-muted-foreground"
                         )}>
-                          记录全面多维度理解，识别效果好，等待时间长
+                          多维度理解，识别效果好，等待时间长
                         </p>
                       </div>
                     </div>

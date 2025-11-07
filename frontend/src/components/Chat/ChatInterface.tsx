@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card } from '@/components/ui/card'
@@ -6,14 +7,13 @@ import {
   Send, 
   Loader2,
   MessageSquare,
-  Settings,
   Image as ImageIcon
 } from 'lucide-react'
 import { useChatStore } from '@/store/chatStore'
-import { conversationApi, chatApi } from '@/services/api'
+import { useAuthStore } from '@/store/authStore'
+import { conversationApi, chatApi, authApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
 import MessageList from './MessageList'
-import ContextModeSelector from './ContextModeSelector'
 import FileUploader from './FileUploader'
 import MultiImageUploader from './MultiImageUploader'
 import LoadingMessage from './LoadingMessage'
@@ -22,9 +22,10 @@ import { cn } from '@/lib/utils'
 export default function ChatInterface() {
   const [inputValue, setInputValue] = useState('')
   const [isComposing, setIsComposing] = useState(false)
-  const [showContextMode, setShowContextMode] = useState(false)
   const [pendingContextMode, setPendingContextMode] = useState<'general'|'work'|'intimate'|'social'>('general')
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const navigate = useNavigate()
   
   const {
     currentConversation,
@@ -36,10 +37,35 @@ export default function ChatInterface() {
     setCurrentAnalysis,
     setCurrentSuggestions,
     setAnalyzing,
-    setError
+    setError,
+    addConversation
   } = useChatStore()
   
+  const { isAuthenticated, user, setUsageStats } = useAuthStore()
   const { toast } = useToast()
+  
+  // 当登录状态变化时，重新获取使用统计
+  useEffect(() => {
+    const loadUsageStats = async () => {
+      try {
+        const stats = await authApi.getUsageStats()
+        setUsageStats(stats)
+      } catch (error) {
+        console.error('获取使用统计失败:', error)
+      }
+    }
+    loadUsageStats()
+  }, [isAuthenticated, setUsageStats])
+
+  // 当有消息时，隐藏欢迎界面
+  useEffect(() => {
+    if (currentMessages.length > 0) {
+      setShowWelcomeScreen(false)
+    } else if (currentMessages.length === 0 && !currentConversation) {
+      // 如果没有消息且没有当前对话，显示欢迎界面
+      setShowWelcomeScreen(true)
+    }
+  }, [currentMessages, currentConversation])
 
   // 自动调整输入框高度
   useEffect(() => {
@@ -109,13 +135,40 @@ export default function ChatInterface() {
       
       // 如果没有当前对话，创建新对话
       if (!conversation) {
-        conversation = await conversationApi.createConversation({
-          title: message.slice(0, 30) + (message.length > 30 ? '...' : ''),
-          context_mode: 'general'
-        })
-        setCurrentConversation(conversation)
+        try {
+          conversation = await conversationApi.createConversation({
+            title: message.slice(0, 30) + (message.length > 30 ? '...' : ''),
+            context_mode: pendingContextMode || 'general'
+          })
+          setCurrentConversation(conversation)
+          // 将新对话添加到对话列表中
+          addConversation(conversation)
+          // 更新使用统计（创建对话后）
+          try {
+            const stats = await authApi.getUsageStats()
+            setUsageStats(stats)
+          } catch (error) {
+            console.error('更新使用统计失败:', error)
+          }
+          // 导航到新对话页面
+          navigate(`/chat/${conversation.id}`, { replace: true })
+        } catch (error: any) {
+          if (error.response?.status === 403) {
+            toast({
+              title: "会话创建失败",
+              description: error.response?.data?.detail || "非登录用户最多只能创建5个会话，请登录后继续使用。",
+              variant: "destructive",
+              duration: 4000
+            })
+            return
+          }
+          throw error
+        }
       }
 
+      // 隐藏欢迎界面
+      setShowWelcomeScreen(false)
+      
       // 添加用户消息到界面
       const userMessage = {
         id: Date.now(),
@@ -130,36 +183,65 @@ export default function ChatInterface() {
       }
       addMessage(userMessage)
 
+      // 检查使用次数限制
+      try {
+        const stats = await authApi.getUsageStats()
+        setUsageStats(stats)
+      } catch (error) {
+        console.error('获取使用统计失败:', error)
+      }
+
       // 开始分析
       setAnalyzing(true)
-      const response = await chatApi.analyzeChat({
-        conversation_id: conversation.id,
-        message: message,
-        context_mode: conversation.context_mode
-      })
-
-      // 添加AI分析消息
-      const aiMessage = {
-        ...response.message,
-        content: response.message.content,
-        analysis_result: response.analysis,
-        analysis_metadata: {
-          ...response.message.analysis_metadata,
-          suggestions: response.suggestions
+      try {
+        const response = await chatApi.analyzeChat({
+          conversation_id: conversation.id,
+          message: message,
+          context_mode: conversation.context_mode
+        })
+        
+        // 更新使用统计
+        try {
+          const stats = await authApi.getUsageStats()
+          setUsageStats(stats)
+        } catch (error) {
+          console.error('更新使用统计失败:', error)
         }
-      }
-      
-      addMessage(aiMessage)
-      
-      // 设置分析结果和建议
-      setCurrentAnalysis(response.analysis)
-      setCurrentSuggestions(response.suggestions)
 
-      toast({
-        title: "分析完成",
-        description: "已生成分析结果和回复建议",
-        duration: 2000
-      })
+        // 添加AI分析消息
+        const aiMessage = {
+          ...response.message,
+          content: response.message.content,
+          analysis_result: response.analysis,
+          analysis_metadata: {
+            ...response.message.analysis_metadata,
+            suggestions: response.suggestions
+          }
+        }
+        
+        addMessage(aiMessage)
+        
+        // 设置分析结果和建议
+        setCurrentAnalysis(response.analysis)
+        setCurrentSuggestions(response.suggestions)
+
+        toast({
+          title: "分析完成",
+          description: "已生成分析结果和回复建议",
+          duration: 2000
+        })
+      } catch (error: any) {
+        if (error.response?.status === 403) {
+          toast({
+            title: "分析失败",
+            description: error.response?.data?.detail || "该会话今日分析次数已达上限，请登录后获得更多次数。",
+            variant: "destructive",
+            duration: 4000
+          })
+          return
+        }
+        throw error
+      }
 
     } catch (error) {
       console.error('发送消息失败:', error)
@@ -185,142 +267,253 @@ export default function ChatInterface() {
 
   const handleNewChat = async () => {
     setCurrentConversation(null)
+    setCurrentMessages([])
     setInputValue('')
+    // 显示欢迎界面
+    setShowWelcomeScreen(true)
+    // 如果已登录，导航到 /chat；如果未登录，导航到主页
+    if (isAuthenticated && user) {
+      navigate('/chat', { replace: true })
+    } else {
+      navigate('/', { replace: true })
+    }
   }
 
 
   return (
     <div className="flex flex-col h-full">
-
-            {/* 消息列表 */}
-            <div className="flex-1 overflow-y-auto bg-background">
-              {currentMessages.length > 0 ? (
-                <div className="flex-1 overflow-y-auto">
-                  <div className="max-w-4xl mx-auto p-4">
-                    <MessageList 
-                      messages={currentMessages} 
-                      onRegenerateAnalysis={handleRegenerateAnalysis}
-                    />
-                    {/* 显示加载状态 */}
-                    {isAnalyzing && <LoadingMessage />}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-full bg-background">
-                  <div className="text-center max-w-md p-8">
-                    <div className="w-20 h-20 mx-auto mb-6 bg-blue-50 rounded-full flex items-center justify-center">
-                      <MessageSquare className="h-10 w-10 text-blue-500" />
-                    </div>
-                    <h3 className="text-2xl font-semibold mb-4 text-foreground">开始新的对话</h3>
-                    <p className="text-muted-foreground mb-8 leading-relaxed text-base">
-                      上传聊天截图或直接输入文字内容，AI将为你进行多维度分析
-                    </p>
-                  </div>
-                </div>
-              )}
+      {/* 消息列表 */}
+      <div className="flex-1 overflow-y-auto bg-background">
+        {currentMessages.length > 0 ? (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto p-4">
+              <MessageList 
+                messages={currentMessages} 
+                onRegenerateAnalysis={handleRegenerateAnalysis}
+              />
+              {/* 显示加载状态 */}
+              {isAnalyzing && <LoadingMessage />}
             </div>
-
-
-      {/* 输入区域 - 完全复刻豆包 */}
-      <div className="p-4 bg-background border-t border">
-        <div className="max-w-4xl mx-auto">
-          {/* 分析模式选择器 */}
-          {showContextMode && (
-            <div className="mb-3 p-4 bg-muted rounded-lg border">
-              <div className="mb-3">
-                <h4 className="text-sm font-medium text-foreground mb-2">选择分析模式</h4>
-                <p className="text-xs text-muted-foreground">不同的模式会影响AI的分析重点和回复建议</p>
+          </div>
+        ) : showWelcomeScreen && isAuthenticated && user ? (
+          // 登录后的欢迎界面（豆包风格）- 欢迎文字和输入框在同一容器中
+          <div className="flex flex-col items-center justify-center h-full bg-background">
+            <div className="text-center max-w-4xl mx-auto px-6 py-12 w-full">
+              <div className="mb-8">
+                <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                  <MessageSquare className="h-12 w-12 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold mb-3 text-foreground">
+                  欢迎回来，{user.username}！
+                </h2>
+                <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                  开始你的智能对话分析之旅
+                </p>
               </div>
-              <ContextModeSelector
-                selectedMode={currentConversation?.context_mode || pendingContextMode}
-                onModeChange={(mode) => {
-                  if (currentConversation) {
-                    setCurrentConversation({ ...currentConversation, context_mode: mode })
-                  } else {
-                    setPendingContextMode(mode)
-                  }
-                  setShowContextMode(false)
-                  toast({
-                    title: "模式已选择",
-                    description: `已切换到${mode === 'work' ? '工作' : mode === 'intimate' ? '亲密' : mode === 'social' ? '社交' : '通用'}模式`,
-                    duration: 1000
-                  })
-                }}
-              />
-            </div>
-          )}
-          
-          {/* 豆包输入框 - 完全复刻 */}
-          <div className="flex items-center bg-card border border-input rounded-full px-4 py-3 shadow-sm focus-within:shadow-md focus-within:border-ring transition-all">
-            {/* 左侧功能按钮 */}
-            <div className="flex items-center gap-3 mr-3">
-              <MultiImageUploader
-                onTextExtracted={(text) => setInputValue(text)}
-                disabled={isAnalyzing}
-              />
-              <FileUploader
-                disabled={isAnalyzing}
-              />
-            </div>
-            
-            {/* 输入框 */}
-            <div className="flex-1">
-              <Textarea
-                ref={textareaRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onCompositionStart={() => setIsComposing(true)}
-                onCompositionEnd={() => setIsComposing(false)}
-                placeholder="输入消息..."
-                className="min-h-[24px] max-h-[120px] resize-none border-0 bg-transparent p-0 text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
-                disabled={isAnalyzing}
-              />
-            </div>
-            
-            {/* 右侧操作按钮 */}
-            <div className="flex items-center gap-2 ml-3">
-              {/* 当前模式显示 */}
-              {(currentConversation?.context_mode || pendingContextMode) && (
-                <div className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-full border border-blue-200">
-                  {(currentConversation?.context_mode || pendingContextMode) === 'work' ? '工作模式' :
-                   (currentConversation?.context_mode || pendingContextMode) === 'intimate' ? '亲密模式' :
-                   (currentConversation?.context_mode || pendingContextMode) === 'social' ? '社交模式' :
-                   (currentConversation?.context_mode || pendingContextMode) === 'general' ? '通用模式' :
-                   (currentConversation?.context_mode || pendingContextMode)}
+              
+              {/* 输入框紧跟在欢迎文字下方 */}
+              <div className="w-full">
+                {/* 豆包输入框 - 欢迎界面时更大更突出，按钮在底部 */}
+                <div className="bg-card border border-input rounded-2xl px-6 py-4 shadow-lg focus-within:shadow-xl focus-within:border-ring transition-all min-h-[120px] flex flex-col">
+                  {/* 输入框区域 */}
+                  <div className="flex-1 mb-3">
+                    <Textarea
+                      ref={textareaRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onCompositionStart={() => setIsComposing(true)}
+                      onCompositionEnd={() => setIsComposing(false)}
+                      placeholder="输入消息开始对话..."
+                      className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent p-0 text-lg placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                      disabled={isAnalyzing}
+                    />
+                  </div>
+                  
+                  {/* 底部按钮区域 */}
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                    {/* 左侧功能按钮 */}
+                    <div className="flex items-center gap-2">
+                      <MultiImageUploader
+                        onTextExtracted={(text) => setInputValue(text)}
+                        disabled={isAnalyzing}
+                      />
+                      <FileUploader
+                        disabled={isAnalyzing}
+                      />
+                    </div>
+                    
+                    {/* 右侧操作按钮 */}
+                    <div className="flex items-center gap-2">
+                      {/* 当前模式显示 */}
+                      {(currentConversation?.context_mode || pendingContextMode) && (
+                        <div className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-full border border-blue-200">
+                          {(currentConversation?.context_mode || pendingContextMode) === 'work' ? '工作模式' :
+                           (currentConversation?.context_mode || pendingContextMode) === 'intimate' ? '亲密模式' :
+                           (currentConversation?.context_mode || pendingContextMode) === 'social' ? '社交模式' :
+                           (currentConversation?.context_mode || pendingContextMode) === 'general' ? '通用模式' :
+                           (currentConversation?.context_mode || pendingContextMode)}
+                        </div>
+                      )}
+                      
+                      {/* 发送按钮 */}
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!inputValue.trim() || isAnalyzing || isComposing}
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:text-gray-500 transition-colors"
+                        title="发送消息"
+                      >
+                        {isAnalyzing ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-white" />
+                        ) : (
+                          <Send className="h-4 w-4 text-white" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          // 未登录的欢迎界面（类似 HomePage）
+          <div className="flex flex-col items-center justify-center h-full bg-background">
+            <div className="text-center max-w-4xl mx-auto px-6 py-12 w-full">
+              <div className="mb-8">
+                <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                  <MessageSquare className="h-12 w-12 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold mb-3 text-foreground">
+                  开始你的智能对话分析之旅
+                </h2>
+                <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                  上传聊天截图或直接输入文字内容，AI将为你进行多维度分析
+                </p>
+              </div>
               
-              {/* 设置按钮 */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowContextMode(!showContextMode)}
-                disabled={isAnalyzing}
-                className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full"
-                title="选择分析模式"
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
+              {/* 输入框紧跟在欢迎文字下方 */}
+              <div className="w-full">
+                {/* 豆包输入框 - 欢迎界面时更大更突出，按钮在底部 */}
+                <div className="bg-card border border-input rounded-2xl px-6 py-4 shadow-lg focus-within:shadow-xl focus-within:border-ring transition-all min-h-[120px] flex flex-col">
+                  {/* 输入框区域 */}
+                  <div className="flex-1 mb-3">
+                    <Textarea
+                      ref={textareaRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onCompositionStart={() => setIsComposing(true)}
+                      onCompositionEnd={() => setIsComposing(false)}
+                      placeholder="输入消息开始对话..."
+                      className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent p-0 text-lg placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                      disabled={isAnalyzing}
+                    />
+                  </div>
+                  
+                  {/* 底部按钮区域 */}
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                    {/* 左侧功能按钮 */}
+                    <div className="flex items-center gap-2">
+                      <MultiImageUploader
+                        onTextExtracted={(text) => setInputValue(text)}
+                        disabled={isAnalyzing}
+                      />
+                      <FileUploader
+                        disabled={isAnalyzing}
+                      />
+                    </div>
+                    
+                    {/* 右侧操作按钮 */}
+                    <div className="flex items-center gap-2">
+                      {/* 发送按钮 */}
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!inputValue.trim() || isAnalyzing || isComposing}
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:text-gray-500 transition-colors"
+                        title="发送消息"
+                      >
+                        {isAnalyzing ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-white" />
+                        ) : (
+                          <Send className="h-4 w-4 text-white" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+
+      {/* 输入区域 - 有消息时显示 */}
+      {currentMessages.length > 0 && (
+        <div className="p-4 bg-background border-t border">
+          <div className="max-w-4xl mx-auto">
+            {/* 豆包输入框 - 正常模式 */}
+            <div className="flex items-center bg-card border border-input rounded-full px-4 py-3 shadow-sm focus-within:shadow-md focus-within:border-ring transition-all">
+              {/* 左侧功能按钮 */}
+              <div className="flex items-center gap-3 mr-3">
+                <MultiImageUploader
+                  onTextExtracted={(text) => setInputValue(text)}
+                  disabled={isAnalyzing}
+                />
+                <FileUploader
+                  disabled={isAnalyzing}
+                />
+              </div>
               
-              {/* 发送按钮 */}
-              <Button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isAnalyzing || isComposing}
-                size="icon"
-                className="h-9 w-9 rounded-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:text-gray-500 transition-colors"
-                title="发送消息"
-              >
-                {isAnalyzing ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-white" />
-                ) : (
-                  <Send className="h-5 w-5 text-white" />
+              {/* 输入框 */}
+              <div className="flex-1">
+                <Textarea
+                  ref={textareaRef}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
+                  placeholder="输入消息..."
+                  className="min-h-[24px] max-h-[120px] resize-none border-0 bg-transparent p-0 text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+                  disabled={isAnalyzing}
+                />
+              </div>
+              
+              {/* 右侧操作按钮 */}
+              <div className="flex items-center gap-2 ml-3">
+                {/* 当前模式显示 */}
+                {(currentConversation?.context_mode || pendingContextMode) && (
+                  <div className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-full border border-blue-200">
+                    {(currentConversation?.context_mode || pendingContextMode) === 'work' ? '工作模式' :
+                     (currentConversation?.context_mode || pendingContextMode) === 'intimate' ? '亲密模式' :
+                     (currentConversation?.context_mode || pendingContextMode) === 'social' ? '社交模式' :
+                     (currentConversation?.context_mode || pendingContextMode) === 'general' ? '通用模式' :
+                     (currentConversation?.context_mode || pendingContextMode)}
+                  </div>
                 )}
-              </Button>
+                
+                {/* 发送按钮 */}
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!inputValue.trim() || isAnalyzing || isComposing}
+                  size="icon"
+                  className="h-9 w-9 rounded-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:text-gray-500 transition-colors"
+                  title="发送消息"
+                >
+                  {isAnalyzing ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  ) : (
+                    <Send className="h-5 w-5 text-white" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

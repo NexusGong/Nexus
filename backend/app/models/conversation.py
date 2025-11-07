@@ -19,6 +19,7 @@ class Conversation(Base):
     
     # 外键关联
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="用户ID")
+    session_token = Column(String(255), nullable=True, index=True, comment="会话Token（非登录用户使用）")
     
     # 会话基本信息
     title = Column(String(200), nullable=False, comment="会话标题")

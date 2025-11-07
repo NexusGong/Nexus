@@ -49,6 +49,29 @@ class Settings(BaseSettings):
     # CORS配置
     cors_origins: str = Field(default="http://localhost:3000,http://localhost:5173", description="CORS允许的源")
 
+    # 次数限制配置 - 非登录用户
+    guest_ocr_fast_limit: int = Field(default=5, description="非登录用户极速模式OCR次数限制")
+    guest_ocr_quality_limit: int = Field(default=2, description="非登录用户性能模式OCR次数限制")
+    guest_conversation_limit: int = Field(default=5, description="非登录用户最多会话数")
+    guest_chat_analysis_limit: int = Field(default=10, description="非登录用户每个会话最多分析次数")
+
+    # 次数限制配置 - 登录用户
+    user_ocr_fast_limit: int = Field(default=10, description="登录用户极速模式OCR次数限制")
+    user_ocr_quality_limit: int = Field(default=5, description="登录用户性能模式OCR次数限制")
+    user_chat_analysis_limit: int = Field(default=50, description="登录用户每个会话最多分析次数")
+
+    # 验证码配置
+    verification_code_length: int = Field(default=6, description="验证码长度")
+    verification_code_expire_minutes: int = Field(default=5, description="验证码过期时间(分钟)")
+    verification_code_resend_interval: int = Field(default=60, description="验证码重发间隔(秒)")
+
+    # 邮件配置（用于发送验证码）
+    smtp_host: str = Field(default="", description="SMTP服务器地址")
+    smtp_port: int = Field(default=587, description="SMTP服务器端口")
+    smtp_user: str = Field(default="", description="SMTP用户名")
+    smtp_password: str = Field(default="", description="SMTP密码")
+    smtp_from_email: str = Field(default="", description="发送验证码的邮箱地址")
+
     def get_allowed_extensions(self) -> List[str]:
         """获取允许的文件扩展名列表"""
         return [ext.strip() for ext in self.allowed_extensions.split(",")]

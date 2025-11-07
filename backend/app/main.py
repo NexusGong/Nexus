@@ -15,7 +15,7 @@ from app.config import settings
 from app.core.logging import setup_logging
 from app.core.errors import register_exception_handlers
 from app.database import create_tables
-from app.api import chat, cards
+from app.api import chat, cards, auth
 from app.services.screenshot_service import startup_screenshot_service, shutdown_screenshot_service
 
 
@@ -138,6 +138,7 @@ async def root():
 # 注册API路由
 app.include_router(chat.router)
 app.include_router(cards.router)
+app.include_router(auth.router)
 
 
 # 启动服务器

@@ -4,6 +4,7 @@ import Layout from '@/components/Layout'
 import HomePage from '@/pages/HomePage'
 import ChatPage from '@/pages/ChatPage'
 import CardsPage from '@/pages/CardsPage'
+import SettingsPage from '@/pages/SettingsPage'
 import { useThemeStore } from '@/store/themeStore'
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
           <Route path="chat" element={<ChatPage />} />
           <Route path="chat/:conversationId" element={<ChatPage />} />
           <Route path="cards" element={<CardsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
       <Toaster />

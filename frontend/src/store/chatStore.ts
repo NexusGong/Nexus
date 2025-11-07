@@ -102,6 +102,7 @@ interface ChatState {
   setCurrentMessages: (messages: Message[]) => void
   addMessage: (message: Message) => void
   setConversations: (conversations: Conversation[]) => void
+  addConversation: (conversation: Conversation) => void
   updateConversation: (conversationId: number, updates: Partial<Conversation>) => void
   removeConversation: (conversationId: number) => void
   setCurrentAnalysis: (analysis: AnalysisResult | null) => void
@@ -134,6 +135,16 @@ export const useChatStore = create<ChatState>()(
         currentMessages: [...state.currentMessages, message] 
       })),
       setConversations: (conversations) => set({ conversations: Array.isArray(conversations) ? conversations : [] }),
+      addConversation: (conversation) => set((state) => {
+        const existingConversations = Array.isArray(state.conversations) ? state.conversations : []
+        // 检查是否已存在，避免重复添加
+        const exists = existingConversations.some(conv => conv.id === conversation.id)
+        if (exists) {
+          return state
+        }
+        // 将新对话添加到列表顶部
+        return { conversations: [conversation, ...existingConversations] }
+      }),
       updateConversation: (conversationId, updates) => set((state) => ({
         conversations: Array.isArray(state.conversations) 
           ? state.conversations.map(conv => 

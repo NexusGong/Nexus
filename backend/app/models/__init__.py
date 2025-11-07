@@ -7,6 +7,8 @@ from .user import User
 from .conversation import Conversation
 from .message import Message
 from .analysis_card import AnalysisCard
+from .verification_code import VerificationCode
+from .usage_record import UsageRecord
 
-__all__ = ["User", "Conversation", "Message", "AnalysisCard"]
+__all__ = ["User", "Conversation", "Message", "AnalysisCard", "VerificationCode", "UsageRecord"]
 

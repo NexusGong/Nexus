@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Navigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +16,7 @@ import {
   Save
 } from 'lucide-react'
 import { cardApi } from '@/services/api'
+import { useAuthStore } from '@/store/authStore'
 import { useToast } from '@/hooks/use-toast'
 import { formatDate, downloadFile } from '@/lib/utils'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
@@ -39,6 +41,7 @@ interface AnalysisCard {
 }
 
 export default function CardsPage() {
+  const { isAuthenticated } = useAuthStore()
   const [cards, setCards] = useState<AnalysisCard[]>([])
   const [loading, setLoading] = useState(true)
   const [exportingCard, setExportingCard] = useState<number | null>(null)
@@ -53,8 +56,29 @@ export default function CardsPage() {
   const { toast } = useToast()
 
   useEffect(() => {
+    const loadCards = async () => {
+      try {
+        setLoading(true)
+        const response = await cardApi.getCards({
+          page: 1,
+          size: 50
+        })
+        setCards(response.cards)
+      } catch (error) {
+        console.error('加载卡片失败:', error)
+        toast({
+          title: "加载失败",
+          description: "无法加载分析卡片，请重试",
+          variant: "destructive",
+          duration: 500
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
     loadCards()
-  }, [])
+  }, [isAuthenticated, toast])
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -67,27 +91,6 @@ export default function CardsPage() {
       return () => document.removeEventListener('click', handleClickOutside)
     }
   }, [showMoreOptions])
-
-  const loadCards = async () => {
-    try {
-      setLoading(true)
-      const response = await cardApi.getCards({
-        page: 1,
-        size: 50
-      })
-      setCards(response.cards)
-    } catch (error) {
-      console.error('加载卡片失败:', error)
-      toast({
-        title: "加载失败",
-        description: "无法加载分析卡片，请重试",
-        variant: "destructive",
-        duration: 500
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleExportImage = async (cardId: number) => {
     try {

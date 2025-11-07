@@ -20,7 +20,9 @@ class User(Base):
     # 用户基本信息
     username = Column(String(50), unique=True, index=True, nullable=False, comment="用户名")
     email = Column(String(100), unique=True, index=True, nullable=True, comment="邮箱")
+    phone = Column(String(20), unique=True, index=True, nullable=True, comment="手机号")
     hashed_password = Column(String(255), nullable=True, comment="加密后的密码")
+    avatar_url = Column(String(500), nullable=True, comment="头像URL")
     
     # 用户状态
     is_active = Column(Boolean, default=True, comment="是否激活")
@@ -29,6 +31,7 @@ class User(Base):
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    last_login_at = Column(DateTime(timezone=True), nullable=True, comment="最后登录时间")
     
     # 关联关系
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
