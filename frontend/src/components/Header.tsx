@@ -19,7 +19,7 @@ export default function Header() {
   // 初始化时恢复登录状态
   useEffect(() => {
     const initAuth = async () => {
-      const { token, user: currentUser } = useAuthStore.getState()
+      const { token, user: currentUser, isAuthenticated } = useAuthStore.getState()
       const storedToken = localStorage.getItem('auth_token')
       
       // 如果 localStorage 中有 token 但 store 中没有，同步 token
@@ -27,10 +27,14 @@ export default function Header() {
         useAuthStore.getState().setToken(storedToken)
       }
       
-      // 如果 token 存在但用户信息不存在，验证 token 并获取用户信息
-      if ((storedToken || token) && !currentUser) {
+      // 如果有 token（无论是存储的还是恢复的），都需要验证 token 是否有效
+      // 即使 currentUser 存在，也可能是因为从持久化存储恢复的，token 可能已过期
+      const tokenToVerify = storedToken || token
+      if (tokenToVerify) {
         try {
+          // 验证 token 并获取用户信息
           const userInfo = await authApi.getMe()
+          // 如果获取成功，更新用户信息
           useAuthStore.getState().setUser(userInfo)
           // 获取使用统计
           try {
@@ -40,13 +44,18 @@ export default function Header() {
             console.error('获取使用统计失败:', error)
           }
         } catch (error: any) {
-          // token 无效，清除状态
-          console.error('获取用户信息失败:', error)
-          if (error.response?.status === 401) {
+          // token 无效或过期，清除状态
+          console.warn('Token验证失败，清除登录状态:', error)
+          if (error.response?.status === 401 || error.response?.status === 403 || (error as any).isTokenExpired) {
             localStorage.removeItem('auth_token')
             useAuthStore.getState().logout()
+            console.warn('Token已过期或无效，已清除登录状态')
           }
         }
+      } else if (currentUser || isAuthenticated) {
+        // 如果没有 token 但显示为已登录，清除登录状态
+        console.warn('检测到没有token但显示为已登录，清除登录状态')
+        useAuthStore.getState().logout()
       }
     }
     initAuth()
@@ -68,9 +77,6 @@ export default function Header() {
         <div className="flex h-14 items-center justify-between px-6">
           {/* 左侧标题区域 */}
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold text-foreground">
-              对话意图智能分析
-            </h1>
           </div>
 
           {/* 右侧用户操作区域 */}

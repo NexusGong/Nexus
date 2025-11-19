@@ -121,7 +121,8 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
-        isAuthenticated: state.isAuthenticated,
+        // 不持久化 isAuthenticated，每次恢复时都重新验证
+        // isAuthenticated: state.isAuthenticated,
         sessionToken: state.sessionToken
       }),
       onRehydrateStorage: () => (state) => {
@@ -131,10 +132,13 @@ export const useAuthStore = create<AuthState>()(
         } else {
           localStorage.removeItem('auth_token')
         }
-        // 如果 token 存在但 user 不存在，需要验证 token 并获取用户信息
-        if (state?.token && !state?.user) {
-          // 这里会在 Header 组件中处理
+        // 重置 isAuthenticated，等待 Header 组件验证 token 后再设置
+        // 这样可以避免 token 过期后仍然显示为已登录
+        if (state) {
+          state.isAuthenticated = false
         }
+        // 如果 token 存在但 user 不存在，需要验证 token 并获取用户信息
+        // 这里会在 Header 组件中处理
       }
     }
   )

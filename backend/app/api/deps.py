@@ -95,12 +95,55 @@ def get_current_user_optional(
     Returns:
         Optional[User]: 当前用户对象或None
     """
+    from loguru import logger
+    
     if not credentials:
+        logger.debug("未提供认证凭据（可选认证）")
         return None
     
     try:
-        return get_current_user(db, credentials)
-    except HTTPException:
+        # 解码JWT token
+        token_str = credentials.credentials
+        logger.debug(f"尝试验证JWT token: {token_str[:20]}...（可选认证）")
+        
+        payload = jwt.decode(
+            token_str, 
+            settings.secret_key, 
+            algorithms=[settings.algorithm]
+        )
+        user_id_str = payload.get("sub")
+        if user_id_str is None:
+            logger.warning("JWT token中缺少用户ID（可选认证）")
+            return None
+        
+        # JWT的sub字段是字符串，需要转换为整数
+        try:
+            user_id: int = int(user_id_str)
+        except (ValueError, TypeError):
+            logger.warning(f"JWT token中的用户ID格式无效: {user_id_str}（可选认证）")
+            return None
+        
+        # 从数据库获取用户
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            logger.warning(f"用户不存在: {user_id}（可选认证）")
+            return None
+        
+        logger.debug(f"JWT token验证成功，用户ID: {user_id}（可选认证）")
+        return user
+    except JWTError as e:
+        # token过期或无效是可选认证的预期情况
+        # 对于token过期，记录info级别日志
+        # 对于其他JWT错误，记录warning级别日志用于调试
+        error_msg = str(e).lower()
+        if "expired" in error_msg:
+            logger.info(f"JWT token已过期（可选认证）: {e}")
+        else:
+            logger.warning(f"JWT token验证失败（可选认证）: {e}")
+        return None
+    except Exception as e:
+        # 其他异常使用warning级别，因为可能是意外的错误
+        logger.warning(f"JWT token解码异常（可选认证）: {e}")
         return None
 
 

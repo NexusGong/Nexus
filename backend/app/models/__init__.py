@@ -9,6 +9,19 @@ from .message import Message
 from .analysis_card import AnalysisCard
 from .verification_code import VerificationCode
 from .usage_record import UsageRecord
+from .ai_character import AICharacter
+from .character_conversation import CharacterConversation
+from .character_message import CharacterMessage
 
-__all__ = ["User", "Conversation", "Message", "AnalysisCard", "VerificationCode", "UsageRecord"]
+__all__ = [
+    "User", 
+    "Conversation", 
+    "Message", 
+    "AnalysisCard", 
+    "VerificationCode", 
+    "UsageRecord",
+    "AICharacter",
+    "CharacterConversation",
+    "CharacterMessage"
+]
 

@@ -8,12 +8,14 @@ import {
   X,
   Edit2,
   Trash2,
-  MoreVertical
+  MoreVertical,
+  Sparkles,
+  Users
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useChatStore } from '@/store/chatStore'
 import { useAuthStore } from '@/store/authStore'
-import { conversationApi } from '@/services/api'
+import { conversationApi, characterChatApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { cn, formatRelativeTime } from '@/lib/utils'
@@ -51,10 +53,41 @@ export default function Sidebar() {
       }
       
       try {
-        const response = await conversationApi.getConversations(1, 20)
+        // 同时获取普通对话和角色对话（静默处理错误，不显示toast）
+        const [normalResponse, characterResponse] = await Promise.all([
+          conversationApi.getConversations(1, 20).catch((error) => {
+            // 静默处理，不显示toast，特别是当没有历史记录时
+            console.log('加载普通对话失败（可能是没有记录）:', error)
+            return { conversations: [], total: 0 }
+          }),
+          characterChatApi.getConversations({ page: 1, size: 20 }).catch((error) => {
+            // 静默处理，不显示toast，特别是当没有历史记录时
+            console.log('加载角色对话失败（可能是没有记录）:', error)
+            return { conversations: [], total: 0 }
+          })
+        ])
+        
         // 合并后端返回的对话和本地存储的对话
         const currentConversations = useChatStore.getState().conversations || []
-        const backendConversations = response.conversations || []
+        const backendNormalConversations = normalResponse.conversations || []
+        const backendCharacterConversations = characterResponse.conversations || []
+        
+        // 将角色对话转换为侧边栏格式
+        const formattedCharacterConversations = backendCharacterConversations.map((conv: any) => ({
+          id: conv.id,
+          title: conv.title || (conv.character ? `与${conv.character.name}的对话` : '角色对话'),
+          description: conv.character ? `与${conv.character.name}的对话` : '角色对话',
+          context_mode: 'character_chat',
+          is_active: 'active',
+          message_count: conv.message_count || 0,
+          analysis_count: 0,
+          created_at: conv.created_at,
+          updated_at: conv.updated_at,
+          character: conv.character
+        }))
+        
+        // 合并所有对话
+        const allBackendConversations = [...backendNormalConversations, ...formattedCharacterConversations]
         
         // 创建一个 Map 来去重（以对话 ID 为键）
         const conversationMap = new Map<number, any>()
@@ -67,7 +100,7 @@ export default function Sidebar() {
         })
         
         // 然后添加后端返回的对话（更新最新数据）
-        backendConversations.forEach((conv: any) => {
+        allBackendConversations.forEach((conv: any) => {
           if (conv && conv.id) {
             conversationMap.set(conv.id, conv)
           }
@@ -113,7 +146,12 @@ export default function Sidebar() {
 
   const handleConversationClick = (conversation: any) => {
     setCurrentConversation(conversation)
-    navigate(`/chat/${conversation.id}`)
+    // 判断是角色对话还是普通对话
+    if (conversation.context_mode === 'character_chat') {
+      navigate(`/chat-mode/${conversation.id}`)
+    } else {
+      navigate(`/chat/${conversation.id}`)
+    }
   }
 
   const handleEditConversation = (conversation: any) => {
@@ -158,12 +196,31 @@ export default function Sidebar() {
     
     setIsDeleting(true)
     try {
-      await conversationApi.deleteConversation(conversationToDelete)
+      // 根据对话类型选择不同的删除API
+      const conversation = conversations.find((c: any) => c.id === conversationToDelete)
+      const isCharacterChat = conversation?.context_mode === 'character_chat'
+      
+      if (isCharacterChat) {
+        // 删除角色对话
+        await characterChatApi.deleteConversation(conversationToDelete)
+      } else {
+        // 删除普通对话
+        await conversationApi.deleteConversation(conversationToDelete)
+      }
+      
       removeConversation(conversationToDelete)
       
-      // 如果删除的是当前对话，跳转到新建对话
-      if (location.pathname === `/chat/${conversationToDelete}`) {
-        navigate('/chat')
+      // 删除成功后，如果删除的是当前对话，跳转到新建对话页面
+      const currentPath = location.pathname
+      if (currentPath === `/chat/${conversationToDelete}` || currentPath === `/chat-mode/${conversationToDelete}`) {
+        clearCurrentChat()
+        if (isCharacterChat) {
+          navigate('/chat-mode', { replace: true })
+        } else {
+          navigate('/chat', { replace: true })
+        }
+      } else {
+        // 即使删除的不是当前对话，也确保清除当前对话状态（如果匹配）
         clearCurrentChat()
       }
     } catch (error) {
@@ -188,6 +245,16 @@ export default function Sidebar() {
       href: '/chat',
       icon: Plus,
       onClick: handleNewChat
+    },
+    {
+      name: '卡片模式',
+      href: '/card-mode',
+      icon: Sparkles
+    },
+    {
+      name: '自由交谈',
+      href: '/chat-mode',
+      icon: Users
     },
     {
       name: '分析卡片',
@@ -219,7 +286,7 @@ export default function Sidebar() {
             "text-lg font-semibold text-foreground transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap",
             isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
           )}>
-            聊天分析
+            Replay
           </h1>
           <Button
             variant="ghost"
@@ -258,10 +325,14 @@ export default function Sidebar() {
                 
                 {/* 对话列表 */}
                 <div className={cn(
-                  "ml-7 space-y-0.5 max-h-[calc(100vh-60px)] transition-all duration-300 ease-in-out",
+                  "ml-7 space-y-0.5 transition-all duration-300 ease-in-out",
                   isCollapsed 
                     ? "w-0 opacity-0 overflow-hidden pointer-events-none" 
-                    : "w-auto opacity-100 overflow-y-auto"
+                    : "w-auto opacity-100",
+                  // 当只有一条对话时，给更多上下空间，避免出现滚动条
+                  conversations.length === 1 
+                    ? "py-4" 
+                    : "max-h-[calc(100vh-60px)] overflow-y-auto"
                 )}>
                     {(Array.isArray(conversations) ? conversations : []).slice(0, 20).map((conversation) => {
                       const isActive = location.pathname === `/chat/${conversation.id}`

@@ -26,7 +26,7 @@ class DeepSeekAIService:
     async def analyze_chat_content(
         self, 
         chat_content: str, 
-        context_mode: str = "general",
+        context_mode: Optional[str] = None,
         analysis_focus: Optional[Dict[str, Any]] = None
     ) -> AnalysisResult:
         """
@@ -70,7 +70,7 @@ class DeepSeekAIService:
                 # 解析分析结果
                 analysis_data = self._parse_analysis_response(content)
                 
-                logger.info(f"聊天内容分析完成，模式: {context_mode}")
+                logger.info(f"聊天内容分析完成")
                 
                 return AnalysisResult(**analysis_data)
                 
@@ -84,31 +84,32 @@ class DeepSeekAIService:
     def _build_analysis_prompt(
         self, 
         chat_content: str, 
-        context_mode: str, 
-        analysis_focus: Optional[Dict[str, Any]]
+        context_mode: Optional[str] = None, 
+        analysis_focus: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         构建分析提示词
         
         Args:
             chat_content: 聊天内容
-            context_mode: 情景模式
+            context_mode: 情景模式（可选）
             analysis_focus: 分析重点
             
         Returns:
             str: 构建的提示词
         """
-        # 情景模式说明
-        context_descriptions = {
-            "general": "一般社交场景",
-            "work": "职场工作场景",
-            "intimate": "亲密关系场景",
-            "social": "社交网络场景"
-        }
+        # 情景模式说明（如果提供了context_mode）
+        context_desc = ""
+        if context_mode:
+            context_descriptions = {
+                "general": "一般社交场景",
+                "work": "职场工作场景",
+                "intimate": "亲密关系场景",
+                "social": "社交网络场景"
+            }
+            context_desc = f"场景：{context_descriptions.get(context_mode, '一般场景')}\n\n"
         
-        context_desc = context_descriptions.get(context_mode, "一般场景")
-        
-        prompt = f"""请对以下聊天内容进行多维度分析。场景：{context_desc}
+        prompt = f"""请对以下聊天内容进行多维度分析。{context_desc}
 
 聊天内容：
 {chat_content}
@@ -252,7 +253,7 @@ class DeepSeekAIService:
         self, 
         chat_content: str, 
         analysis_result: AnalysisResult,
-        context_mode: str = "general"
+        context_mode: Optional[str] = None
     ) -> List[ResponseSuggestion]:
         """
         生成回复建议
@@ -307,7 +308,7 @@ class DeepSeekAIService:
         self, 
         chat_content: str, 
         analysis_result: AnalysisResult,
-        context_mode: str
+        context_mode: Optional[str] = None
     ) -> str:
         """
         构建回复建议提示词
@@ -354,7 +355,7 @@ class DeepSeekAIService:
     }}
 ]
 
-请确保返回有效的JSON格式，建议要实用且符合{context_mode}场景。"""
+请确保返回有效的JSON格式，建议要实用且符合场景需求。"""
     
     def _parse_suggestion_response(self, content: str) -> List[ResponseSuggestion]:
         """

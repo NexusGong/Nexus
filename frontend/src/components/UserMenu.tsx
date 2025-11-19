@@ -34,8 +34,8 @@ export default function UserMenu({ user }: UserMenuProps) {
     clearCurrentChat()
     // 退出登录
     logout()
-    // 导航到主页
-    navigate('/')
+    // 导航到主页（会自动清除URL中的conversationId）
+    navigate('/', { replace: true })
   }
 
   const handleSettings = () => {

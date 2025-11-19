@@ -177,6 +177,18 @@ async def get_conversation(
         # 获取客户端信息
         ip_address, session_token = get_client_info(request)
         
+        # 调试日志：检查认证状态
+        if current_user:
+            logger.debug(f"获取对话 {conversation_id}: 当前用户已登录，用户ID={current_user.id}")
+        else:
+            logger.debug(f"获取对话 {conversation_id}: 当前用户未登录，session_token={session_token[:20] if session_token else 'None'}...")
+            # 检查是否有Authorization header
+            auth_header = request.headers.get("Authorization")
+            if auth_header:
+                logger.warning(f"获取对话 {conversation_id}: 有Authorization header但用户未认证，header={auth_header[:30]}...")
+            else:
+                logger.debug(f"获取对话 {conversation_id}: 没有Authorization header")
+        
         conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
         
         if not conversation:
@@ -185,29 +197,47 @@ async def get_conversation(
                 detail="对话不存在"
             )
         
-        # 检查权限
+        # 检查权限（添加详细日志用于调试）
         if current_user:
             # 登录用户只能访问自己的对话
             if conversation.user_id != current_user.id:
+                logger.warning(
+                    f"权限检查失败: 用户 {current_user.id} 尝试访问对话 {conversation_id}, "
+                    f"但对话属于用户 {conversation.user_id}"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="无权限访问此对话"
                 )
+            logger.debug(f"权限检查通过: 用户 {current_user.id} 访问自己的对话 {conversation_id}")
         else:
             # 未登录用户只能访问自己的 session_token 的对话
             # 如果对话的 session_token 为 NULL（历史数据），允许所有未登录用户访问
             if conversation.user_id is not None:
+                logger.warning(
+                    f"权限检查失败: 未登录用户尝试访问对话 {conversation_id}, "
+                    f"但对话属于已登录用户 {conversation.user_id}, session_token={session_token[:20] if session_token else 'None'}..."
+                )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="无权限访问此对话"
+                    detail="无权限访问此对话（该对话属于已登录用户，请先登录）"
                 )
             # 如果对话的 session_token 为 NULL（历史数据），允许访问
             # 如果对话的 session_token 不为 NULL，必须匹配
             if conversation.session_token is not None and conversation.session_token != session_token:
+                logger.warning(
+                    f"权限检查失败: 未登录用户尝试访问对话 {conversation_id}, "
+                    f"session_token不匹配. 对话token={conversation.session_token[:20] if conversation.session_token else 'None'}..., "
+                    f"请求token={session_token[:20] if session_token else 'None'}..."
+                )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="无权限访问此对话"
+                    detail="无权限访问此对话（session token不匹配）"
                 )
+            logger.debug(
+                f"权限检查通过: 未登录用户访问对话 {conversation_id}, "
+                f"session_token匹配或为历史数据"
+            )
         
         return ConversationResponse.model_validate(conversation)
         

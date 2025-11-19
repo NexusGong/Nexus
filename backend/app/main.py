@@ -15,7 +15,7 @@ from app.config import settings
 from app.core.logging import setup_logging
 from app.core.errors import register_exception_handlers
 from app.database import create_tables
-from app.api import chat, cards, auth
+from app.api import chat, cards, auth, characters, character_chat, card_mode
 from app.services.screenshot_service import startup_screenshot_service, shutdown_screenshot_service
 
 
@@ -32,6 +32,14 @@ async def lifespan(app: FastAPI):
     try:
         create_tables()
         logger.info("✅ 数据库表创建成功")
+        
+        # 初始化AI角色
+        try:
+            from app.utils.init_characters import init_characters
+            init_characters()
+            logger.info("✅ AI角色初始化成功")
+        except Exception as e:
+            logger.warning(f"⚠️  AI角色初始化失败: {e}")
     except Exception as e:
         logger.error(f"❌ 数据库表创建失败: {e}")
     
@@ -139,6 +147,9 @@ async def root():
 app.include_router(chat.router)
 app.include_router(cards.router)
 app.include_router(auth.router)
+app.include_router(characters.router)
+app.include_router(character_chat.router)
+app.include_router(card_mode.router)
 
 
 # 启动服务器

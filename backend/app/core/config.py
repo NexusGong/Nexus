@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # 安全配置
     secret_key: str = Field(description="JWT密钥")
     algorithm: str = Field(default="HS256", description="JWT算法")
-    access_token_expire_minutes: int = Field(default=30, description="访问令牌过期时间(分钟)")
+    access_token_expire_minutes: int = Field(default=10080, description="访问令牌过期时间(分钟)，默认7天")
 
     # DeepSeek API配置
     deepseek_api_key: str = Field(description="DeepSeek API密钥")

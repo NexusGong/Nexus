@@ -47,19 +47,35 @@ api.interceptors.response.use(
   (error) => {
     console.error('API请求错误:', error)
     
-    // 处理401错误（未授权）
-    if (error.response?.status === 401) {
+    // 处理401错误（未授权）和403错误（token过期导致的权限问题）
+    if (error.response?.status === 401 || error.response?.status === 403) {
       const url = error.config?.url || ''
+      const errorDetail = error.response?.data?.detail || ''
       
-      // 只有在获取用户信息失败时才自动退出登录
-      // 其他操作（如上传头像）只显示错误，不自动退出
-      if (url.includes('/auth/me')) {
+      // 检查是否是token过期导致的错误
+      const isTokenExpired = errorDetail.includes('已过期') || 
+                            errorDetail.includes('expired') ||
+                            errorDetail.includes('Signature has expired')
+      
+      // 如果是token过期，或者是在获取用户信息时失败，清除token并退出登录
+      if (isTokenExpired || url.includes('/auth/me')) {
         // 清除过期的token
         localStorage.removeItem('auth_token')
         // 清除用户状态
         const authStore = useAuthStore.getState()
         authStore.logout()
-        console.error('认证失败，已退出登录')
+        console.warn('Token已过期或无效，已自动退出登录')
+        
+        // 如果是token过期，不显示错误提示（因为会自动退出登录）
+        // 其他401错误正常显示
+        if (!isTokenExpired && error.response?.status === 401) {
+          return Promise.reject(error)
+        }
+        
+        // token过期时，返回一个特殊的错误，让调用方知道是token过期
+        const tokenExpiredError = new Error('Token已过期，请重新登录')
+        ;(tokenExpiredError as any).isTokenExpired = true
+        return Promise.reject(tokenExpiredError)
       }
     }
     
@@ -305,6 +321,174 @@ export const authApi = {
     avatar_url?: string
   }) => {
     const response = await api.put('/auth/profile', data)
+    return response.data
+  },
+}
+
+// AI角色API
+export const characterApi = {
+  // 获取角色列表
+  getCharacters: async (category?: string) => {
+    const response = await api.get('/characters/', {
+      params: category ? { category } : {}
+    })
+    return response.data
+  },
+
+  // 获取角色详情
+  getCharacter: async (characterId: number) => {
+    const response = await api.get(`/characters/${characterId}`)
+    return response.data
+  },
+}
+
+// 卡片模式API
+export const cardModeApi = {
+  // 生成卡片
+  generateCard: async (data: {
+    source?: string
+    user_history_id?: number
+  }) => {
+    const response = await api.post('/card-mode/generate', data)
+    return response.data
+  },
+}
+
+// 角色对话API
+export const characterChatApi = {
+  // 创建角色对话
+  createConversation: async (data: {
+    character_id: number
+    title?: string
+  }) => {
+    const response = await api.post('/character-chat/conversations', data)
+    return response.data
+  },
+
+  // 获取角色对话列表
+  getConversations: async (params: {
+    page?: number
+    size?: number
+  } = {}) => {
+    const response = await api.get('/character-chat/conversations', { params })
+    return response.data
+  },
+
+  // 删除角色对话
+  deleteConversation: async (conversationId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/character-chat/conversations/${conversationId}`)
+    return response.data
+  },
+
+  // 发送消息给角色（流式）
+  sendMessageStream: async (
+    data: {
+      conversation_id: number
+      message: string
+    },
+    onChunk: (content: string) => void,
+    onDone: (messageId: number) => void,
+    onError: (error: string) => void
+  ): Promise<void> => {
+    const token = localStorage.getItem('auth_token')
+    const authStore = useAuthStore.getState()
+    const sessionToken = authStore.getSessionToken()
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+    
+    if (sessionToken) {
+      headers['X-Session-Token'] = sessionToken
+    }
+    
+    const response = await fetch('/api/character-chat/messages/stream', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: '请求失败' }))
+      onError(error.detail || '请求失败')
+      return
+    }
+    
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+    
+    if (!reader) {
+      onError('无法读取响应流')
+      return
+    }
+    
+    let buffer = ''
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) {
+        break
+      }
+      
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            
+            if (data.error) {
+              onError(data.error)
+              return
+            }
+            
+            if (data.content) {
+              onChunk(data.content)
+            }
+            
+            if (data.done && data.message_id) {
+              onDone(data.message_id)
+              return
+            }
+          } catch (e) {
+            console.error('解析流数据失败:', e)
+          }
+        }
+      }
+    }
+  },
+
+  // 发送消息给角色（非流式，保留作为备用）
+  sendMessage: async (data: {
+    conversation_id: number
+    message: string
+  }) => {
+    const response = await api.post('/character-chat/messages', data)
+    return response.data
+  },
+
+  // 获取对话消息列表
+  getMessages: async (conversationId: number, params: {
+    page?: number
+    size?: number
+  } = {}) => {
+    const response = await api.get(`/character-chat/conversations/${conversationId}/messages`, { params })
+    return response.data
+  },
+
+  // 从对话生成卡片
+  generateCard: async (data: {
+    conversation_id: number
+    title?: string
+  }) => {
+    const response = await api.post('/character-chat/generate-card', data)
     return response.data
   },
 }

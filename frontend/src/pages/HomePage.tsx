@@ -7,7 +7,9 @@ import {
   FileText, 
   Image, 
   Brain, 
-  Lightbulb
+  Lightbulb,
+  Sparkles,
+  Users
 } from 'lucide-react'
 
 export default function HomePage() {
@@ -56,7 +58,7 @@ export default function HomePage() {
           <p className="text-xl text-muted-foreground mb-10 max-w-3xl mx-auto leading-relaxed">
             基于AI的聊天内容多维度分析，帮你理解对话深层含义，提供智能回复建议，让沟通更加高效
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Button asChild size="lg" className="text-lg px-8 py-6">
               <Link to="/chat">
                 <MessageSquare className="mr-2 h-5 w-5" />
@@ -69,6 +71,43 @@ export default function HomePage() {
                 查看卡片
               </Link>
             </Button>
+          </div>
+          
+          {/* 新模式入口 */}
+          <div className="mt-8">
+            <div className="text-center mb-6">
+              <h3 className="text-2xl font-semibold text-foreground mb-2">全新体验模式</h3>
+              <p className="text-muted-foreground">选择你喜欢的互动方式</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-2xl mx-auto">
+              <Card className="flex-1 hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer group border-2 hover:border-primary/50">
+                <Link to="/card-mode">
+                  <CardHeader className="text-center">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 group-hover:from-purple-500/30 group-hover:to-pink-500/30 transition-colors">
+                      <Sparkles className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <CardTitle className="text-xl">卡片模式</CardTitle>
+                    <CardDescription className="mt-2">
+                      像抽卡游戏一样，每次生成一张精美的分析卡片
+                    </CardDescription>
+                  </CardHeader>
+                </Link>
+              </Card>
+              
+              <Card className="flex-1 hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer group border-2 hover:border-primary/50">
+                <Link to="/chat-mode">
+                  <CardHeader className="text-center">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 group-hover:from-blue-500/30 group-hover:to-cyan-500/30 transition-colors">
+                      <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <CardTitle className="text-xl">自由交谈模式</CardTitle>
+                    <CardDescription className="mt-2">
+                      与有趣的AI角色对话，每个角色都有独特的性格和语气
+                    </CardDescription>
+                  </CardHeader>
+                </Link>
+              </Card>
+            </div>
           </div>
         </div>
 

@@ -4,6 +4,16 @@
 
 本项目包含完整的文档体系，涵盖开发记录、部署指南、变更日志等各个方面。
 
+### 2025-11-07 更新要点（与代码保持一致）
+
+- **卡片模式与自由交谈模式**：
+  - 新增卡片模式：像抽卡游戏一样，输入内容后生成精美的分析卡片
+  - 新增自由交谈模式：与7个有趣的AI角色进行多轮对话
+  - 支持流式输出（SSE）和Markdown渲染
+  - 采用豆包UI风格设计
+  - 完整的角色管理和对话管理功能
+  - 详细功能说明请参考 [FEATURE_PLAN_CARD_AND_CHAT_MODES.md](./FEATURE_PLAN_CARD_AND_CHAT_MODES.md)
+
 ### 2025-11-01 更新要点（与代码保持一致）
 
 - **OCR提供方选择功能**：
@@ -38,6 +48,7 @@
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - 详细的部署指南，支持多种部署方式
 
 ### 📝 开发记录
+- **[DAILY_SUMMARY_2025_11_19.md](./DAILY_SUMMARY_2025_11_19.md)** - 2025年11月19日开发记录
 - **[DAILY_SUMMARY_2025_11_07.md](./DAILY_SUMMARY_2025_11_07.md)** - 2025年11月07日开发记录
 - **[DAILY_SUMMARY_2025_11_06.md](./DAILY_SUMMARY_2025_11_06.md)** - 2025年11月06日开发记录
 - **[DAILY_SUMMARY_2025_11_05.md](./DAILY_SUMMARY_2025_11_05.md)** - 2025年11月05日开发记录
@@ -46,6 +57,10 @@
 - **[DAILY_SUMMARY_2025_10_29.md](./DAILY_SUMMARY_2025_10_29.md)** - 2025年10月29日开发记录
 - **[DAILY_SUMMARY_2025_10_28.md](./DAILY_SUMMARY_2025_10_28.md)** - 2025年10月28日开发记录
 - **[DAILY_SUMMARY_2025_10_24.md](./DAILY_SUMMARY_2025_10_24.md)** - 2025年10月24日开发记录
+
+### 🎯 功能文档
+- **[FEATURE_PLAN_CARD_AND_CHAT_MODES.md](./FEATURE_PLAN_CARD_AND_CHAT_MODES.md)** - 卡片模式与自由交谈模式开发计划
+- **[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)** - 卡片模式与自由交谈模式实现状态
 
 ## 🎯 快速导航
 
@@ -93,8 +108,8 @@
 
 ---
 
-**最后更新**: 2025年11月07日  
+**最后更新**: 2025年11月19日  
 **维护者**: 项目开发团队  
-**版本**: 1.0.2
+**版本**: 1.1.0（新增卡片模式和自由交谈模式）
 
 
