@@ -357,6 +357,21 @@ export const characterManagementApi = {
   },
 }
 
+// 支付API
+export const paymentApi = {
+  // 获取角色价格
+  getCharacterPrice: async (characterId: number) => {
+    const response = await api.get(`/payment/character-price/${characterId}`)
+    return response.data
+  },
+
+  // 购买角色（解锁角色）
+  purchaseCharacter: async (characterId: number) => {
+    const response = await api.post(`/payment/purchase-character/${characterId}`)
+    return response.data
+  },
+}
+
 // 卡片模式API
 export const cardModeApi = {
   // 生成卡片

@@ -12,9 +12,59 @@ from app.models.ai_character import AICharacter
 from app.models.user_character import UserCharacter
 from app.api.deps import get_current_user
 from app.models.user import User
+from app.core.pricing import get_character_price
 from loguru import logger
 
 router = APIRouter(prefix="/api/payment", tags=["支付"])
+
+
+@router.get("/character-price/{character_id}")
+async def get_character_price_endpoint(
+    character_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取角色价格
+    
+    Args:
+        character_id: 角色ID
+        db: 数据库会话
+        
+    Returns:
+        dict: 角色价格信息
+    """
+    try:
+        # 检查角色是否存在
+        character = db.query(AICharacter).filter(
+            AICharacter.id == character_id,
+            AICharacter.is_active == True
+        ).first()
+        
+        if not character:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="角色不存在"
+            )
+        
+        # 获取价格
+        price = get_character_price(character.rarity)
+        
+        return {
+            "character_id": character_id,
+            "character_name": character.name,
+            "rarity": character.rarity,
+            "price": price,
+            "currency": "CNY"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取角色价格失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="获取角色价格失败"
+        )
 
 
 @router.post("/purchase-character/{character_id}")
@@ -63,9 +113,35 @@ async def purchase_character(
                 "payment_success": False
             }
         
+        # 获取角色价格
+        price = get_character_price(character.rarity)
+        
+        # 如果价格为0，直接解锁（免费角色）
+        if price == 0.0:
+            logger.info(f"角色 {character_id} 为免费角色，直接解锁")
+            if user_character:
+                user_character.is_owned = True
+                user_character.owned_at = datetime.utcnow()
+            else:
+                user_character = UserCharacter(
+                    user_id=current_user.id,
+                    character_id=character_id,
+                    is_owned=True,
+                    owned_at=datetime.utcnow()
+                )
+                db.add(user_character)
+            db.commit()
+            return {
+                "message": "角色已解锁",
+                "is_owned": True,
+                "character_id": character_id,
+                "payment_success": True,
+                "price": price
+            }
+        
         # 模拟支付流程
         # 1. 验证支付（这里模拟成功）
-        logger.info(f"用户 {current_user.id} 开始购买角色 {character_id}，模拟支付流程...")
+        logger.info(f"用户 {current_user.id} 开始购买角色 {character_id}，价格: {price}元，模拟支付流程...")
         
         # 2. 模拟支付延迟
         import asyncio
@@ -92,7 +168,8 @@ async def purchase_character(
             "is_owned": True,
             "character_id": character_id,
             "payment_success": True,
-            "payment_id": f"PAY_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{current_user.id}_{character_id}"
+            "payment_id": f"PAY_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{current_user.id}_{character_id}",
+            "price": price
         }
         
     except HTTPException:

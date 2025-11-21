@@ -15,7 +15,7 @@ from app.config import settings
 from app.core.logging import setup_logging
 from app.core.errors import register_exception_handlers
 from app.database import create_tables
-from app.api import chat, cards, auth, characters, character_chat, card_mode, character_management
+from app.api import chat, cards, auth, characters, character_chat, card_mode, character_management, payment
 from app.services.screenshot_service import startup_screenshot_service, shutdown_screenshot_service
 
 
@@ -151,6 +151,7 @@ app.include_router(characters.router)
 app.include_router(character_chat.router)
 app.include_router(card_mode.router)
 app.include_router(character_management.router)
+app.include_router(payment.router)
 
 
 # 启动服务器

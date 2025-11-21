@@ -1,6 +1,6 @@
 """
-清空数据库中的所有记录
-保留表结构，只删除数据
+清空数据库中的数据，但保留用户信息
+保留表结构，只删除除用户信息外的所有数据
 """
 
 import sys
@@ -19,16 +19,17 @@ from app.models import (
     VerificationCode,
     AICharacter,
     CharacterConversation,
-    CharacterMessage
+    CharacterMessage,
+    UserCharacter
 )
 from app.utils.init_characters import init_characters
 from loguru import logger
 
-def clear_all_data():
-    """清空所有表的数据"""
+def clear_data_except_users():
+    """清空除用户信息外的所有数据"""
     db = SessionLocal()
     try:
-        logger.info("开始清空数据库...")
+        logger.info("开始清空数据库（保留用户信息）...")
         
         # 按依赖关系顺序删除（先删除子表，再删除父表）
         # 1. 删除消息相关
@@ -53,21 +54,23 @@ def clear_all_data():
         deleted_usage = db.query(UsageRecord).delete()
         logger.info(f"删除了 {deleted_usage} 条使用记录")
         
-        # 5. 删除验证码
+        # 5. 删除用户角色关联（用户拥有的角色）
+        deleted_user_characters = db.query(UserCharacter).delete()
+        logger.info(f"删除了 {deleted_user_characters} 条用户角色关联记录")
+        
+        # 6. 删除验证码
         deleted_codes = db.query(VerificationCode).delete()
         logger.info(f"删除了 {deleted_codes} 条验证码记录")
         
-        # 6. 删除AI角色（会重新初始化）
+        # 7. 删除AI角色（会重新初始化）
         deleted_characters = db.query(AICharacter).delete()
         logger.info(f"删除了 {deleted_characters} 个AI角色")
         
-        # 7. 删除用户（最后删除）
-        deleted_users = db.query(User).delete()
-        logger.info(f"删除了 {deleted_users} 个用户")
+        # 注意：不删除用户表，保留所有用户信息
         
         # 提交更改
         db.commit()
-        logger.info("✅ 数据库清空完成")
+        logger.info("✅ 数据库清空完成（用户信息已保留）")
         
         # 重新初始化AI角色
         logger.info("重新初始化AI角色...")
@@ -82,5 +85,5 @@ def clear_all_data():
         db.close()
 
 if __name__ == "__main__":
-    clear_all_data()
+    clear_data_except_users()
 

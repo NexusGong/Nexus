@@ -13,7 +13,8 @@ import {
   Check,
   User,
   ArrowLeft,
-  Settings
+  Settings,
+  Lock
 } from 'lucide-react'
 import { characterApi, characterChatApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
@@ -30,6 +31,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import UnlockDialog from '@/components/Character/UnlockDialog'
+import LoginDialog from '@/components/Auth/LoginDialog'
+import RegisterDialog from '@/components/Auth/RegisterDialog'
 
 interface AICharacter {
   id: number
@@ -41,6 +45,8 @@ interface AICharacter {
   background?: string
   category: string
   rarity: string
+  is_usable?: boolean
+  is_locked?: boolean
 }
 
 interface Message {
@@ -56,7 +62,7 @@ export default function ChatModePage() {
   const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { addConversation, updateConversation } = useChatStore()
-  const { user } = useAuthStore()
+  const { user, isAuthenticated } = useAuthStore()
   
   const [characters, setCharacters] = useState<AICharacter[]>([])
   const [selectedCharacter, setSelectedCharacter] = useState<AICharacter | null>(null)
@@ -68,6 +74,10 @@ export default function ChatModePage() {
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [hasGreeted, setHasGreeted] = useState(false)
   const [isCharacterDialogOpen, setIsCharacterDialogOpen] = useState(false)
+  const [unlockDialogOpen, setUnlockDialogOpen] = useState(false)
+  const [characterToUnlock, setCharacterToUnlock] = useState<AICharacter | null>(null)
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false)
+  const [registerDialogOpen, setRegisterDialogOpen] = useState(false)
 
   // 滚动到底部
   useEffect(() => {
@@ -76,27 +86,8 @@ export default function ChatModePage() {
 
   // 加载角色列表
   useEffect(() => {
-    const loadCharacters = async () => {
-      try {
-        setIsLoading(true)
-        const response = await characterApi.getCharacters()
-        const charactersList = response.characters || []
-        console.log('加载到的角色数量:', charactersList.length)
-        console.log('角色列表:', charactersList.map((c: any) => c.name))
-        setCharacters(charactersList)
-      } catch (error) {
-        console.error('加载角色失败:', error)
-        toast({
-          title: "加载失败",
-          description: "无法加载AI角色列表",
-          variant: "destructive"
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
     loadCharacters()
-  }, [toast])
+  }, [toast, isAuthenticated])
 
   // 如果有conversationId，加载对话；如果没有，保留角色选择状态
   useEffect(() => {
@@ -155,6 +146,22 @@ export default function ChatModePage() {
   }
 
   const handleSelectCharacter = async (character: AICharacter) => {
+    // 检查角色是否可用
+    if (character.is_locked) {
+      // 如果角色被锁定，触发解锁流程
+      // 先保存要解锁的角色信息
+      setCharacterToUnlock(character)
+      
+      if (!isAuthenticated) {
+        // 未登录用户：弹出登录对话框
+        setLoginDialogOpen(true)
+      } else {
+        // 登录用户：弹出付费解锁对话框
+        setUnlockDialogOpen(true)
+      }
+      return
+    }
+
     // 选择角色时不创建对话，只保存角色信息
     // 只有当用户发送第一条消息时，才会创建对话
     setSelectedCharacter(character)
@@ -164,6 +171,53 @@ export default function ChatModePage() {
     
     // 导航到聊天页面（不带conversationId）
     navigate('/chat-mode', { replace: true })
+  }
+
+  const handleUnlockSuccess = () => {
+    // 解锁成功后刷新角色列表
+    loadCharacters()
+    setCharacterToUnlock(null)
+    hasHandledLoginUnlock.current = false
+  }
+
+  // 监听登录状态变化，登录成功后如果有要解锁的角色，弹出解锁对话框
+  // 使用 ref 来跟踪是否已经处理过登录后的解锁流程，避免重复弹出
+  const hasHandledLoginUnlock = useRef(false)
+  
+  useEffect(() => {
+    if (isAuthenticated && characterToUnlock && !unlockDialogOpen && !hasHandledLoginUnlock.current) {
+      // 用户已登录，且有要解锁的角色，且解锁对话框未打开，且还未处理过
+      // 延迟一下，确保角色列表已刷新
+      hasHandledLoginUnlock.current = true
+      setTimeout(() => {
+        setUnlockDialogOpen(true)
+      }, 300)
+    }
+    
+    // 如果用户未登录，重置标志
+    if (!isAuthenticated) {
+      hasHandledLoginUnlock.current = false
+    }
+  }, [isAuthenticated, characterToUnlock, unlockDialogOpen])
+
+  const loadCharacters = async () => {
+    try {
+      setIsLoading(true)
+      const response = await characterApi.getCharacters()
+      const charactersList = response.characters || []
+      console.log('加载到的角色数量:', charactersList.length)
+      console.log('角色列表:', charactersList.map((c: any) => c.name))
+      setCharacters(charactersList)
+    } catch (error) {
+      console.error('加载角色失败:', error)
+      toast({
+        title: "加载失败",
+        description: "无法加载AI角色列表",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSwitchCharacter = async (character: AICharacter) => {
@@ -427,10 +481,16 @@ export default function ChatModePage() {
     ? characters 
     : characters.filter(c => c.category === activeCategory)
   ).sort((a, b) => {
-    // 先按稀有度排序（从高到低）
+    // 第一优先级：可用状态（可用的在前）
+    const aUsable = a.is_usable ?? false
+    const bUsable = b.is_usable ?? false
+    if (aUsable !== bUsable) {
+      return aUsable ? -1 : 1
+    }
+    // 第二优先级：稀有度（从高到低）
     const rarityDiff = getRarityOrder(b.rarity) - getRarityOrder(a.rarity)
     if (rarityDiff !== 0) return rarityDiff
-    // 稀有度相同则按名称排序
+    // 第三优先级：名称（中文排序）
     return a.name.localeCompare(b.name, 'zh-CN')
   })
 
@@ -472,57 +532,93 @@ export default function ChatModePage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {filteredCharacters.map((character) => (
-                  <Card
-                    key={character.id}
-                    className="cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 border hover:border-primary/50 group overflow-hidden"
-                    onClick={() => handleSelectCharacter(character)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex flex-col h-full">
-                        {/* 头像区域 */}
-                        <div className="relative mx-auto mb-2">
-                          {character.avatar_url ? (
-                            <img
-                              src={character.avatar_url}
-                              alt={character.name}
-                              className="w-16 h-16 rounded-full object-cover border-2 border-primary/20 group-hover:border-primary/50 transition-colors"
-                            />
-                          ) : (
-                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center border-2 border-primary/20 group-hover:border-primary/50 transition-colors">
-                              <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                {filteredCharacters.map((character) => {
+                  const isLocked = character.is_locked ?? false
+                  return (
+                    <Card
+                      key={character.id}
+                      className={cn(
+                        "relative cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 border group overflow-hidden",
+                        isLocked 
+                          ? "border-muted/50 opacity-90" 
+                          : "hover:border-primary/50"
+                      )}
+                      onClick={() => handleSelectCharacter(character)}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex flex-col h-full">
+                          {/* 头像区域 */}
+                          <div className="relative mx-auto mb-2">
+                            {character.avatar_url ? (
+                              <img
+                                src={character.avatar_url}
+                                alt={character.name}
+                                className={cn(
+                                  "w-16 h-16 rounded-full object-cover border-2 transition-colors relative z-10",
+                                  isLocked
+                                    ? "border-primary/30 opacity-85"
+                                    : "border-primary/20 group-hover:border-primary/50"
+                                )}
+                              />
+                            ) : (
+                              <div className={cn(
+                                "w-16 h-16 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center border-2 transition-colors relative z-10",
+                                isLocked
+                                  ? "border-primary/30 opacity-85"
+                                  : "border-primary/20 group-hover:border-primary/50"
+                              )}>
+                                <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                              </div>
+                            )}
+                            {/* 稀有度角标 */}
+                            <div className={`absolute -top-1 -right-1 w-6 h-6 rounded-full bg-gradient-to-r ${getRarityColor(character.rarity)} flex items-center justify-center border-2 border-background shadow-sm z-10`}>
+                              <span className="text-[10px] font-bold text-white leading-none">
+                                {getRarityLabel(character.rarity)}
+                              </span>
                             </div>
+                          </div>
+                          
+                          {/* 名称 */}
+                          <h3 className={cn(
+                            "font-semibold text-sm text-center mb-2 line-clamp-1 relative z-10",
+                            isLocked ? "text-foreground/90" : "text-foreground"
+                          )}>
+                            {character.name}
+                          </h3>
+                          
+                          {/* 标签 */}
+                          <div className="flex items-center justify-center gap-1 mb-2 flex-wrap relative z-10">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+                              {getCategoryName(character.category)}
+                            </Badge>
+                          </div>
+                          
+                          {/* 描述 */}
+                          {character.description && (
+                            <p className={cn(
+                              "text-xs line-clamp-2 leading-relaxed text-center flex-1 relative z-10",
+                              isLocked ? "text-foreground/85" : "text-muted-foreground"
+                            )}>
+                              {character.description}
+                            </p>
                           )}
-                          {/* 稀有度角标 */}
-                          <div className={`absolute -top-1 -right-1 w-6 h-6 rounded-full bg-gradient-to-r ${getRarityColor(character.rarity)} flex items-center justify-center border-2 border-background shadow-sm`}>
-                            <span className="text-[10px] font-bold text-white leading-none">
-                              {getRarityLabel(character.rarity)}
+                        </div>
+
+                        {/* 锁定遮罩 - 使用更透明的遮罩，确保信息可见 */}
+                        {isLocked && (
+                          <div className="absolute inset-0 bg-background/30 backdrop-blur-[1px] flex flex-col items-center justify-end pb-2 gap-1.5 z-20 pointer-events-none">
+                            <div className="w-8 h-8 rounded-full bg-primary/90 flex items-center justify-center border-2 border-background shadow-lg">
+                              <Lock className="h-4 w-4 text-background" />
+                            </div>
+                            <span className="text-xs font-semibold text-primary bg-background/95 backdrop-blur-sm px-2.5 py-1 rounded-md border border-primary/20 shadow-sm">
+                              {!isAuthenticated ? '登录解锁' : '点击解锁'}
                             </span>
                           </div>
-                        </div>
-                        
-                        {/* 名称 */}
-                        <h3 className="font-semibold text-sm text-foreground text-center mb-2 line-clamp-1">
-                          {character.name}
-                        </h3>
-                        
-                        {/* 标签 */}
-                        <div className="flex items-center justify-center gap-1 mb-2 flex-wrap">
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
-                            {getCategoryName(character.category)}
-                          </Badge>
-                        </div>
-                        
-                        {/* 描述 */}
-                        {character.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed text-center flex-1">
-                            {character.description}
-                          </p>
                         )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
                 
                 {/* 管理角色卡片 */}
                 <Card
@@ -547,6 +643,53 @@ export default function ChatModePage() {
             )}
           </div>
         </div>
+
+        {/* 解锁对话框 */}
+        <UnlockDialog
+          open={unlockDialogOpen}
+          onOpenChange={(open) => {
+            setUnlockDialogOpen(open)
+            // 如果关闭对话框（无论是取消还是成功），清除要解锁的角色
+            if (!open) {
+              setCharacterToUnlock(null)
+              hasHandledLoginUnlock.current = false
+            }
+          }}
+          character={characterToUnlock}
+          onUnlockSuccess={handleUnlockSuccess}
+        />
+
+        {/* 登录对话框 */}
+        <LoginDialog
+          open={loginDialogOpen}
+          onOpenChange={(open) => {
+            setLoginDialogOpen(open)
+            // 如果关闭登录对话框且用户已登录，刷新角色列表
+            if (!open && isAuthenticated) {
+              loadCharacters()
+            }
+          }}
+          onSwitchToRegister={() => {
+            setLoginDialogOpen(false)
+            setRegisterDialogOpen(true)
+          }}
+        />
+
+        {/* 注册对话框 */}
+        <RegisterDialog
+          open={registerDialogOpen}
+          onOpenChange={(open) => {
+            setRegisterDialogOpen(open)
+            // 如果关闭注册对话框且用户已登录，刷新角色列表
+            if (!open && isAuthenticated) {
+              loadCharacters()
+            }
+          }}
+          onSwitchToLogin={() => {
+            setRegisterDialogOpen(false)
+            setLoginDialogOpen(true)
+          }}
+        />
       </div>
     )
   }
@@ -748,6 +891,7 @@ export default function ChatModePage() {
                         </DialogHeader>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
                           {characters
+                            .filter((character) => character.is_usable && !character.is_locked)
                             .sort((a, b) => {
                               const rarityDiff = getRarityOrder(b.rarity) - getRarityOrder(a.rarity)
                               if (rarityDiff !== 0) return rarityDiff
@@ -807,6 +951,31 @@ export default function ChatModePage() {
                               </CardContent>
                             </Card>
                           ))}
+                          
+                          {/* 获得更多角色卡片 */}
+                          <Card
+                            className="cursor-pointer hover:shadow-md transition-all duration-200 border-2 border-dashed border-primary/50 hover:border-primary bg-primary/5"
+                            onClick={() => {
+                              setIsCharacterDialogOpen(false)
+                              navigate('/character-management')
+                            }}
+                          >
+                            <CardContent className="p-3">
+                              <div className="flex items-center justify-center h-full min-h-[100px] flex-col gap-2">
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center border-2 border-primary/30">
+                                  <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                <div className="text-center">
+                                  <h3 className="font-semibold text-sm text-foreground mb-1">
+                                    获得更多角色
+                                  </h3>
+                                  <p className="text-xs text-muted-foreground">
+                                    解锁更多角色来使用
+                                  </p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
                         </div>
                       </DialogContent>
                     </Dialog>

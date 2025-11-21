@@ -25,6 +25,8 @@ class AICharacterResponse(AICharacterBase, IDMixin, TimestampMixin):
     """角色响应模式"""
     is_active: bool
     system_prompt: Optional[str] = None  # 不返回给前端，仅内部使用
+    is_usable: Optional[bool] = Field(None, description="是否可用")
+    is_locked: Optional[bool] = Field(None, description="是否锁定")
 
 
 class AICharacterListResponse(BaseSchema):
