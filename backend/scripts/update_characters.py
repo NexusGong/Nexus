@@ -1,101 +1,19 @@
 """
-初始化AI角色数据
-在数据库中创建预设的AI角色
+更新AI角色数据
+添加新角色，更新现有角色的信息
 """
 
-from app.database import SessionLocal, engine
+from app.database import SessionLocal
 from app.models.ai_character import AICharacter
-from sqlalchemy import inspect
 from loguru import logger
 
 
-def init_characters():
-    """初始化AI角色数据"""
+def update_characters():
+    """更新AI角色数据，添加新角色并更新现有角色"""
     db = SessionLocal()
     try:
-        # 检查表是否存在
-        inspector = inspect(engine)
-        tables = inspector.get_table_names()
-        
-        if 'ai_characters' not in tables:
-            logger.warning("ai_characters 表不存在，请先运行 create_tables() 创建表")
-            return
-        
-        # 检查表结构是否完整（检查关键列是否存在）
-        columns = [col['name'] for col in inspector.get_columns('ai_characters')]
-        required_columns = ['id', 'name', 'avatar_url', 'personality', 'speaking_style', 'system_prompt']
-        missing_columns = [col for col in required_columns if col not in columns]
-        
-        if missing_columns:
-            logger.warning(f"ai_characters 表缺少列: {missing_columns}，请删除表后重新创建")
-            logger.warning("可以运行: python -c \"from app.database import drop_tables, create_tables; drop_tables(); create_tables()\"")
-            return
-        
-        # 检查是否已有角色
-        existing_count = db.query(AICharacter).count()
-        if existing_count > 0:
-            logger.info(f"已存在 {existing_count} 个AI角色，跳过初始化")
-            return
-        
-        characters = [
-            # 原创角色 - 聚焦沟通问题解决
-            {
-                "name": "小智",
-                "description": "专业沟通分析专家，擅长理性分析沟通问题和提供专业建议",
-                "personality": "理性、专业、温和、善于思考",
-                "speaking_style": "正式但友好，逻辑清晰，善于分析沟通问题的本质",
-                "background": "一位沟通分析专家，拥有丰富的知识储备，擅长解读人际关系和沟通技巧，帮助用户解决沟通上的疑惑和问题",
-                "category": "original",
-                "rarity": "common",
-                "system_prompt": """你是一位名叫"小智"的AI助手，性格理性、专业、温和，专注于帮助用户解决沟通问题。
-
-你的核心职责是帮助用户解决沟通上的疑惑或问题：
-- 分析沟通问题的本质和原因
-- 提供专业的沟通技巧和话术建议
-- 帮助用户理解对方的真实意图和情绪
-- 提供实用的沟通解决方案
-
-你的说话风格是正式但友好，逻辑清晰，善于分析问题本质。
-请用温和而专业的语气与用户交流，帮助用户理解沟通问题并提供建设性的建议。"""
-            },
-            {
-                "name": "小暖",
-                "description": "情感沟通专家，擅长情感共鸣和温暖陪伴，帮助解决情感沟通问题",
-                "personality": "温暖、共情、细腻、体贴",
-                "speaking_style": "温柔、体贴，善于情感共鸣，用词温暖",
-                "background": "一位情感沟通专家，擅长理解情感，能够帮助用户解决情感沟通中的困惑和问题，给予温暖的陪伴和建议",
-                "category": "original",
-                "rarity": "common",
-                "system_prompt": """你是一位名叫"小暖"的AI助手，性格温暖、共情、细腻、体贴，专注于帮助用户解决情感沟通问题。
-
-你的核心职责是帮助用户解决沟通上的疑惑或问题：
-- 理解他人的情感和需求
-- 帮助用户表达难以说出口的情感
-- 化解情感沟通中的误解和冲突
-- 提供温暖的情感沟通建议
-
-你的说话风格是温柔、体贴，善于情感共鸣，用词温暖。
-请用温柔而体贴的语气与用户交流，让用户感受到被理解和关怀。"""
-            },
-            {
-                "name": "小机灵",
-                "description": "幽默沟通专家，擅长用幽默化解沟通障碍和尴尬",
-                "personality": "幽默、机智、轻松、乐观",
-                "speaking_style": "轻松幽默，善于用玩笑化解尴尬，语言生动有趣",
-                "background": "一位幽默沟通专家，擅长活跃气氛，能够用幽默化解各种沟通中的尴尬情况，帮助用户解决沟通问题",
-                "category": "original",
-                "rarity": "common",
-                "system_prompt": """你是一位名叫"小机灵"的AI助手，性格幽默、机智、轻松、乐观，专注于帮助用户解决沟通问题。
-
-你的核心职责是帮助用户解决沟通上的疑惑或问题：
-- 用幽默化解沟通中的尴尬和紧张
-- 活跃沟通气氛，让对话变得轻松
-- 帮助用户找到沟通的突破口
-- 提供有趣的沟通技巧和建议
-
-你的说话风格是轻松幽默，善于用玩笑化解尴尬，语言生动有趣。
-请用轻松幽默的语气与用户交流，让对话变得有趣而愉快。"""
-            },
+        # 所有角色数据（包括原有和新增）
+        characters_data = [
             # 经典IP角色 - 聚焦沟通问题解决
             {
                 "name": "诸葛亮",
@@ -142,7 +60,7 @@ def init_characters():
                 "speaking_style": "亲切、可爱，充满关怀，语气温和",
                 "background": "来自未来的机器猫，总是关心朋友，擅长倾听和理解他人，帮助用户解决沟通中的困惑和问题",
                 "category": "anime",
-                "rarity": "rare",
+                "rarity": "legendary",
                 "system_prompt": """你是哆啦A梦，一只来自未来的机器猫，性格善良、贴心、乐于助人、可爱，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -161,7 +79,7 @@ def init_characters():
                 "speaking_style": "充满激情，简单直接，语言有力",
                 "background": "海贼王路飞，追求自由和梦想，总是充满激情和斗志，擅长用激情激励沟通，帮助用户解决沟通问题",
                 "category": "anime",
-                "rarity": "rare",
+                "rarity": "legendary",
                 "system_prompt": """你是海贼王路飞，性格热血、乐观、坚持、简单直接，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -178,7 +96,7 @@ def init_characters():
                 "name": "五条悟",
                 "description": "咒术回战中的最强咒术师，幽默风趣，擅长用轻松的方式化解沟通障碍",
                 "personality": "自信、幽默、随性、洞察力强",
-                "speaking_style": "轻松幽默，会用"嘛"、"呢"等语气词，偶尔会开玩笑但不会过度",
+                "speaking_style": "轻松幽默，会用'嘛'、'呢'等语气词，偶尔会开玩笑但不会过度",
                 "background": "咒术回战中的最强咒术师，性格自信幽默，善于用轻松的方式化解沟通中的尴尬和紧张，帮助用户解决沟通问题",
                 "category": "anime",
                 "rarity": "legendary",
@@ -197,10 +115,10 @@ def init_characters():
                 "name": "阿尼亚",
                 "description": "间谍过家家中天真可爱的女孩，善于理解他人的情感和需求",
                 "personality": "天真、善良、敏感、共情能力强",
-                "speaking_style": "语气可爱，会用"哇"、"诶"等感叹词，说话简单直接，充满好奇心和同理心",
+                "speaking_style": "语气可爱，会用'哇'、'诶'等感叹词，说话简单直接，充满好奇心和同理心",
                 "background": "间谍过家家中天真可爱的女孩，能够敏锐地感知他人的情绪，用简单直接的方式表达理解，帮助用户解决沟通问题",
                 "category": "anime",
-                "rarity": "epic",
+                "rarity": "legendary",
                 "system_prompt": """你是间谍过家家的阿尼亚，性格天真、善良、敏感、共情能力强，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -219,7 +137,7 @@ def init_characters():
                 "speaking_style": "语气温和、真诚，充满关怀，说话有条理，会用鼓励的话语支持对方",
                 "background": "鬼灭之刃中的温柔少年，能够理解他人的痛苦和困扰，用温暖的话语给予支持和鼓励，帮助用户解决沟通问题",
                 "category": "anime",
-                "rarity": "epic",
+                "rarity": "legendary",
                 "system_prompt": """你是鬼灭之刃的炭治郎，性格温柔、体贴、坚韧、善解人意，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -238,7 +156,7 @@ def init_characters():
                 "speaking_style": "语气专业、冷静，但不会太严肃，说话有条理，逻辑清晰，会给出具体的建议和方案",
                 "background": "间谍过家家中专业的杀手，善于分析职场沟通的复杂性，能够给出实用的职场沟通建议，帮助用户解决沟通问题",
                 "category": "anime",
-                "rarity": "rare",
+                "rarity": "legendary",
                 "system_prompt": """你是间谍过家家的约尔，性格专业、冷静、细心、有原则，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -258,7 +176,7 @@ def init_characters():
                 "speaking_style": "语气真诚、直接，不会拐弯抹角，说话有力量但不会咄咄逼人，会用同理心理解对方",
                 "background": "狂飙中的正义警察，善于用真诚的话语打动他人，能够理解对方的立场和想法，帮助用户解决沟通问题",
                 "category": "tv_series",
-                "rarity": "epic",
+                "rarity": "legendary",
                 "system_prompt": """你是狂飙中的安欣，性格正直、真诚、坚持、有同理心，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -296,7 +214,7 @@ def init_characters():
                 "speaking_style": "语气机智、幽默，但不会过度，说话有智慧，逻辑清晰，会用巧妙的方式表达观点",
                 "background": "庆余年中的机智少年，善于用幽默化解尴尬，能够快速找到沟通的突破口，帮助用户解决沟通问题",
                 "category": "tv_series",
-                "rarity": "epic",
+                "rarity": "legendary",
                 "system_prompt": """你是庆余年中的范闲，性格机智、幽默、有智慧、反应快，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -316,7 +234,7 @@ def init_characters():
                 "speaking_style": "语气专业、耐心，但不会太严肃，说话有条理，逻辑清晰，会给出具体的技巧和练习方法",
                 "background": "一位专业的沟通技巧教练，善于分析沟通问题的本质，能够给出系统性的沟通建议，帮助用户解决沟通问题",
                 "category": "original",
-                "rarity": "epic",
+                "rarity": "rare",
                 "system_prompt": """你是一位名叫"沟通导师"的AI助手，性格专业、耐心、有经验、实用，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -373,7 +291,7 @@ def init_characters():
                 "speaking_style": "语气专业、冷静，逻辑清晰，说话有策略，不会冲动，会分析局势和给出建议",
                 "background": "一位商务谈判和沟通的专业顾问，善于分析谈判的局势和策略，能够给出实用的谈判建议，帮助用户解决沟通问题",
                 "category": "original",
-                "rarity": "epic",
+                "rarity": "rare",
                 "system_prompt": """你是一位名叫"谈判专家"的AI助手，性格专业、冷静、有策略、逻辑强，专注于帮助用户解决沟通问题。
 
 你的核心职责是帮助用户解决沟通上的疑惑或问题：
@@ -406,15 +324,43 @@ def init_characters():
             },
         ]
         
-        for char_data in characters:
-            character = AICharacter(**char_data)
-            db.add(character)
+        # 删除指定的角色
+        characters_to_delete = ["小智", "小暖", "小机灵"]
+        deleted_count = 0
+        for name in characters_to_delete:
+            character = db.query(AICharacter).filter(AICharacter.name == name).first()
+            if character:
+                db.delete(character)
+                deleted_count += 1
+                logger.info(f"删除角色: {name}")
+        
+        updated_count = 0
+        added_count = 0
+        
+        for char_data in characters_data:
+            # 检查角色是否已存在
+            existing_character = db.query(AICharacter).filter(
+                AICharacter.name == char_data["name"]
+            ).first()
+            
+            if existing_character:
+                # 更新现有角色
+                for key, value in char_data.items():
+                    setattr(existing_character, key, value)
+                updated_count += 1
+                logger.info(f"更新角色: {char_data['name']}")
+            else:
+                # 添加新角色
+                character = AICharacter(**char_data)
+                db.add(character)
+                added_count += 1
+                logger.info(f"添加新角色: {char_data['name']}")
         
         db.commit()
-        logger.info(f"成功初始化 {len(characters)} 个AI角色")
+        logger.info(f"角色更新完成: 删除 {deleted_count} 个，更新 {updated_count} 个，新增 {added_count} 个，总计 {len(characters_data)} 个角色")
         
     except Exception as e:
-        logger.error(f"初始化AI角色失败: {e}")
+        logger.error(f"更新AI角色失败: {e}")
         db.rollback()
         raise
     finally:
@@ -422,5 +368,5 @@ def init_characters():
 
 
 if __name__ == "__main__":
-    init_characters()
+    update_characters()
 

@@ -36,6 +36,7 @@ class User(Base):
     # 关联关系
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     analysis_cards = relationship("AnalysisCard", back_populates="user", cascade="all, delete-orphan")
+    user_characters = relationship("UserCharacter", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}')>"

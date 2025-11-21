@@ -27,7 +27,7 @@ class AICharacter(Base):
     system_prompt = Column(Text, nullable=False, comment="系统提示词")
     
     # 角色分类
-    category = Column(String(50), nullable=False, default="original", comment="分类：original/classic/anime")
+    category = Column(String(50), nullable=False, default="original", comment="分类：original/classic/anime/tv_series")
     rarity = Column(String(20), default="common", comment="稀有度：common/rare/epic/legendary")
     
     # 角色状态
@@ -39,6 +39,7 @@ class AICharacter(Base):
     
     # 关联关系
     conversations = relationship("CharacterConversation", back_populates="character", cascade="all, delete-orphan")
+    user_characters = relationship("UserCharacter", back_populates="character", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<AICharacter(id={self.id}, name='{self.name}')>"

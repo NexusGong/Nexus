@@ -12,6 +12,7 @@ from .usage_record import UsageRecord
 from .ai_character import AICharacter
 from .character_conversation import CharacterConversation
 from .character_message import CharacterMessage
+from .user_character import UserCharacter
 
 __all__ = [
     "User", 
@@ -22,6 +23,7 @@ __all__ = [
     "UsageRecord",
     "AICharacter",
     "CharacterConversation",
-    "CharacterMessage"
+    "CharacterMessage",
+    "UserCharacter"
 ]
 

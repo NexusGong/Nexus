@@ -115,12 +115,21 @@ export default function Sidebar() {
           })
         
         setConversations(mergedConversations)
+        
+        // 如果对话列表为空且当前在自由交谈模式，自动导航到自由交谈选择角色页面
+        if (mergedConversations.length === 0 && isAuthenticated) {
+          const currentPath = location.pathname
+          if (currentPath.startsWith('/chat-mode/')) {
+            // 如果在具体的对话页面，导航到选择角色页面
+            navigate('/chat-mode', { replace: true })
+          }
+        }
       } catch (error) {
         console.error('加载对话列表失败:', error)
       }
     }
     loadConversations()
-  }, [setConversations, isAuthenticated])
+  }, [setConversations, isAuthenticated, location.pathname, navigate])
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -308,7 +317,7 @@ export default function Sidebar() {
           if (item.name === '最近对话') {
             // 特殊处理最近对话项
             return (
-              <div key={item.name} className="space-y-2">
+              <div key={item.name} className="space-y-1">
                 <div className={cn(
                   "flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                   "text-muted-foreground",
@@ -331,7 +340,7 @@ export default function Sidebar() {
                     : "w-auto opacity-100",
                   // 当只有一条对话时，给更多上下空间，避免出现滚动条
                   conversations.length === 1 
-                    ? "py-4" 
+                    ? "pt-1 pb-2" 
                     : "max-h-[calc(100vh-60px)] overflow-y-auto"
                 )}>
                     {(Array.isArray(conversations) ? conversations : []).slice(0, 20).map((conversation) => {

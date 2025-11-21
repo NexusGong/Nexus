@@ -23,7 +23,7 @@ async def get_characters(
     获取AI角色列表
     
     Args:
-        category: 角色分类筛选（original/classic/anime）
+        category: 角色分类筛选（original/classic/anime/tv_series）
         db: 数据库会话
         
     Returns:

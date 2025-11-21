@@ -342,6 +342,21 @@ export const characterApi = {
   },
 }
 
+// 角色管理API
+export const characterManagementApi = {
+  // 获取我的角色列表（包含拥有状态）
+  getMyCharacters: async () => {
+    const response = await api.get('/character-management/my-characters')
+    return response.data
+  },
+
+  // 获得角色（拥有角色）
+  ownCharacter: async (characterId: number) => {
+    const response = await api.post(`/character-management/own/${characterId}`)
+    return response.data
+  },
+}
+
 // 卡片模式API
 export const cardModeApi = {
   // 生成卡片
@@ -383,11 +398,12 @@ export const characterChatApi = {
   // 发送消息给角色（流式）
   sendMessageStream: async (
     data: {
-      conversation_id: number
+      conversation_id?: number
+      character_id?: number
       message: string
     },
-    onChunk: (content: string) => void,
-    onDone: (messageId: number) => void,
+    onChunk: (content: string, isGreeting?: boolean) => void,
+    onDone: (messageId: number, conversationId?: number) => void,
     onError: (error: string) => void
   ): Promise<void> => {
     const token = localStorage.getItem('auth_token')
@@ -449,12 +465,16 @@ export const characterChatApi = {
               return
             }
             
+            if (data.greeting) {
+              onChunk(data.greeting, true)
+            }
+            
             if (data.content) {
-              onChunk(data.content)
+              onChunk(data.content, false)
             }
             
             if (data.done && data.message_id) {
-              onDone(data.message_id)
+              onDone(data.message_id, data.conversation_id)
               return
             }
           } catch (e) {

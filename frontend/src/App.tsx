@@ -7,6 +7,7 @@ import CardsPage from '@/pages/CardsPage'
 import SettingsPage from '@/pages/SettingsPage'
 import CardModePage from '@/pages/CardModePage'
 import ChatModePage from '@/pages/ChatModePage'
+import CharacterManagementPage from '@/pages/CharacterManagementPage'
 import { useThemeStore } from '@/store/themeStore'
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
           <Route path="card-mode" element={<CardModePage />} />
           <Route path="chat-mode" element={<ChatModePage />} />
           <Route path="chat-mode/:conversationId" element={<ChatModePage />} />
+          <Route path="character-management" element={<CharacterManagementPage />} />
         </Route>
       </Routes>
       <Toaster />

@@ -17,7 +17,7 @@ class AICharacterBase(BaseSchema):
     personality: str = Field(..., description="性格特点")
     speaking_style: str = Field(..., description="说话风格")
     background: Optional[str] = Field(None, description="背景故事")
-    category: str = Field(default="original", description="分类：original/classic/anime")
+    category: str = Field(default="original", description="分类：original/classic/anime/tv_series")
     rarity: str = Field(default="common", description="稀有度：common/rare/epic/legendary")
 
 
@@ -63,7 +63,8 @@ class CharacterConversationListResponse(BaseSchema):
 
 class CharacterMessageCreate(BaseSchema):
     """创建角色消息请求"""
-    conversation_id: int = Field(..., description="对话ID")
+    conversation_id: Optional[int] = Field(None, description="对话ID（如果为空，则创建新对话）")
+    character_id: Optional[int] = Field(None, description="角色ID（创建新对话时需要）")
     message: str = Field(..., description="消息内容")
 
 

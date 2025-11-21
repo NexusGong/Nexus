@@ -165,7 +165,18 @@ async def get_character_conversations(
                     CharacterConversation.session_token.is_(None)
                 )
         
+        # 使用子查询过滤掉没有用户消息的对话（只包含欢迎语的对话不应该出现在历史记录中）
+        from sqlalchemy import exists
+        subquery = db.query(CharacterMessage).filter(
+            CharacterMessage.conversation_id == CharacterConversation.id,
+            CharacterMessage.role == "user"
+        ).exists()
+        query = query.filter(subquery)
+        
+        # 计算总数（过滤后的）
         total = query.count()
+        
+        # 分页查询
         conversations = query.order_by(CharacterConversation.updated_at.desc()).offset((page - 1) * size).limit(size).all()
         
         # 加载角色信息
@@ -275,28 +286,85 @@ async def send_character_message_stream(
             from app.database import SessionLocal
             local_db = SessionLocal()
             try:
-                # 验证对话是否存在
-                conversation = local_db.query(CharacterConversation).filter(
-                    CharacterConversation.id == message_data.conversation_id
-                ).first()
-                
-                if not conversation:
-                    yield f"data: {json.dumps({'error': '对话不存在'})}\n\n"
-                    return
-                
-                # 检查权限
                 ip_address, session_token = get_client_info(request)
-                if current_user:
-                    if conversation.user_id != current_user.id:
-                        yield f"data: {json.dumps({'error': '无权限访问此对话'})}\n\n"
+                
+                # 如果对话ID为空，创建新对话
+                if not message_data.conversation_id:
+                    if not message_data.character_id:
+                        yield f"data: {json.dumps({'error': '创建新对话需要提供角色ID'})}\n\n"
                         return
+                    
+                    # 验证角色是否存在
+                    character = local_db.query(AICharacter).filter(
+                        AICharacter.id == message_data.character_id,
+                        AICharacter.is_active == True
+                    ).first()
+                    
+                    if not character:
+                        yield f"data: {json.dumps({'error': '角色不存在'})}\n\n"
+                        return
+                    
+                    # 创建对话
+                    conversation = CharacterConversation(
+                        title=f"与{character.name}的对话",
+                        character_id=message_data.character_id,
+                        user_id=current_user.id if current_user else None,
+                        session_token=session_token if not current_user else None,
+                        message_count=0
+                    )
+                    local_db.add(conversation)
+                    local_db.commit()
+                    local_db.refresh(conversation)
+                    
+                    logger.info(f"自动创建角色对话: {conversation.id}, 角色: {character.name}")
+                    
+                    # 获取角色欢迎语并保存
+                    from app.utils.character_greetings import get_character_greeting, get_default_greeting
+                    greeting = get_character_greeting(character.name)
+                    if not greeting:
+                        greeting = get_default_greeting(
+                            character.name,
+                            character.personality,
+                            character.speaking_style,
+                            character.description
+                        )
+                    
+                    greeting_message = CharacterMessage(
+                        conversation_id=conversation.id,
+                        role="assistant",
+                        content=greeting
+                    )
+                    local_db.add(greeting_message)
+                    conversation.message_count = 1
+                    local_db.commit()
+                    
+                    # 如果是新创建的对话，先发送欢迎语
+                    yield f"data: {json.dumps({'greeting': greeting, 'done': False})}\n\n"
                 else:
-                    if conversation.user_id is not None:
-                        yield f"data: {json.dumps({'error': '无权限访问此对话'})}\n\n"
+                    # 验证对话是否存在
+                    conversation = local_db.query(CharacterConversation).filter(
+                        CharacterConversation.id == message_data.conversation_id
+                    ).first()
+                    
+                    if not conversation:
+                        yield f"data: {json.dumps({'error': '对话不存在'})}\n\n"
                         return
-                    if conversation.session_token is not None and conversation.session_token != session_token:
-                        yield f"data: {json.dumps({'error': '无权限访问此对话'})}\n\n"
-                        return
+                    
+                    # 检查权限
+                    if current_user:
+                        if conversation.user_id != current_user.id:
+                            yield f"data: {json.dumps({'error': '无权限访问此对话'})}\n\n"
+                            return
+                    else:
+                        if conversation.user_id is not None:
+                            yield f"data: {json.dumps({'error': '无权限访问此对话'})}\n\n"
+                            return
+                        if conversation.session_token is not None and conversation.session_token != session_token:
+                            yield f"data: {json.dumps({'error': '无权限访问此对话'})}\n\n"
+                            return
+                    
+                    # 获取角色信息
+                    character = local_db.query(AICharacter).filter(AICharacter.id == conversation.character_id).first()
                 
                 # 保存用户消息
                 user_message = CharacterMessage(
@@ -306,9 +374,6 @@ async def send_character_message_stream(
                 )
                 local_db.add(user_message)
                 local_db.commit()
-                
-                # 获取角色信息
-                character = local_db.query(AICharacter).filter(AICharacter.id == conversation.character_id).first()
                 
                 # 获取对话历史（最近30条消息，确保多轮对话的上下文记忆）
                 recent_messages = local_db.query(CharacterMessage).filter(
@@ -388,8 +453,14 @@ async def send_character_message_stream(
                     local_db.commit()
                     local_db.refresh(ai_message)
                     
-                    # 发送完成信号
-                    yield f"data: {json.dumps({'content': '', 'done': True, 'message_id': ai_message.id})}\n\n"
+                    # 发送完成信号，包含对话ID（如果是新创建的）
+                    response_data = {
+                        'content': '',
+                        'done': True,
+                        'message_id': ai_message.id,
+                        'conversation_id': conversation.id
+                    }
+                    yield f"data: {json.dumps(response_data)}\n\n"
             finally:
                 local_db.close()
                 
@@ -428,36 +499,94 @@ async def send_character_message(
         CharacterChatResponse: 对话响应
     """
     try:
-        # 验证对话是否存在
-        conversation = db.query(CharacterConversation).filter(
-            CharacterConversation.id == message_data.conversation_id
-        ).first()
-        
-        if not conversation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="对话不存在"
-            )
-        
-        # 检查权限
         ip_address, session_token = get_client_info(request)
-        if current_user:
-            if conversation.user_id != current_user.id:
+        
+        # 如果对话ID为空，创建新对话
+        if not message_data.conversation_id:
+            if not message_data.character_id:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="无权限访问此对话"
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="创建新对话需要提供角色ID"
                 )
+            
+            # 验证角色是否存在
+            character = db.query(AICharacter).filter(
+                AICharacter.id == message_data.character_id,
+                AICharacter.is_active == True
+            ).first()
+            
+            if not character:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="角色不存在"
+                )
+            
+            # 创建对话
+            conversation = CharacterConversation(
+                title=f"与{character.name}的对话",
+                character_id=message_data.character_id,
+                user_id=current_user.id if current_user else None,
+                session_token=session_token if not current_user else None,
+                message_count=0
+            )
+            db.add(conversation)
+            db.commit()
+            db.refresh(conversation)
+            
+            logger.info(f"自动创建角色对话: {conversation.id}, 角色: {character.name}")
+            
+            # 获取角色欢迎语并保存
+            from app.utils.character_greetings import get_character_greeting, get_default_greeting
+            greeting = get_character_greeting(character.name)
+            if not greeting:
+                greeting = get_default_greeting(
+                    character.name,
+                    character.personality,
+                    character.speaking_style,
+                    character.description
+                )
+            
+            greeting_message = CharacterMessage(
+                conversation_id=conversation.id,
+                role="assistant",
+                content=greeting
+            )
+            db.add(greeting_message)
+            conversation.message_count = 1
+            db.commit()
         else:
-            if conversation.user_id is not None:
+            # 验证对话是否存在
+            conversation = db.query(CharacterConversation).filter(
+                CharacterConversation.id == message_data.conversation_id
+            ).first()
+            
+            if not conversation:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="无权限访问此对话"
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="对话不存在"
                 )
-            if conversation.session_token is not None and conversation.session_token != session_token:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="无权限访问此对话"
-                )
+            
+            # 检查权限
+            if current_user:
+                if conversation.user_id != current_user.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="无权限访问此对话"
+                    )
+            else:
+                if conversation.user_id is not None:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="无权限访问此对话"
+                    )
+                if conversation.session_token is not None and conversation.session_token != session_token:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="无权限访问此对话"
+                    )
+            
+            # 获取角色信息
+            character = db.query(AICharacter).filter(AICharacter.id == conversation.character_id).first()
         
         # 保存用户消息
         user_message = CharacterMessage(
@@ -467,9 +596,6 @@ async def send_character_message(
         )
         db.add(user_message)
         db.commit()
-        
-        # 获取角色信息
-        character = db.query(AICharacter).filter(AICharacter.id == conversation.character_id).first()
         
         # 获取对话历史（最近30条消息，确保多轮对话的上下文记忆）
         recent_messages = db.query(CharacterMessage).filter(

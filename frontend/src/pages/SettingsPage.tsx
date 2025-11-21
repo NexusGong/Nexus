@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
-import { User, Edit, Globe, Monitor, Moon, Sun, X, Camera } from 'lucide-react'
+import { User, Edit, Globe, Monitor, Moon, Sun, X, Camera, Users } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { authApi } from '@/services/api'
 
@@ -230,10 +230,11 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="profile">个人资料</TabsTrigger>
           <TabsTrigger value="preferences">偏好设置</TabsTrigger>
           <TabsTrigger value="device">设备</TabsTrigger>
+          <TabsTrigger value="characters">角色管理</TabsTrigger>
         </TabsList>
 
         {/* 个人资料 */}
@@ -441,6 +442,35 @@ export default function SettingsPage() {
                    navigator.userAgent.includes('Firefox') ? 'Firefox' : 
                    navigator.userAgent.includes('Safari') ? 'Safari' : '未知'}
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 角色管理 */}
+        <TabsContent value="characters">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                角色管理
+              </CardTitle>
+              <CardDescription>
+                管理您的AI角色拥有状态
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  在这里您可以查看和管理所有AI角色的拥有状态。已拥有的角色可以在自由交谈模式中使用。
+                </p>
+                <Button
+                  onClick={() => navigate('/character-management')}
+                  className="w-full sm:w-auto"
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  前往角色管理
+                </Button>
               </div>
             </CardContent>
           </Card>

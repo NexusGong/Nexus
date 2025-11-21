@@ -11,7 +11,9 @@ import {
   MessageSquare,
   ChevronDown,
   Check,
-  User
+  User,
+  ArrowLeft,
+  Settings
 } from 'lucide-react'
 import { characterApi, characterChatApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
@@ -22,13 +24,12 @@ import { useAuthStore } from '@/store/authStore'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
 interface AICharacter {
   id: number
@@ -66,6 +67,7 @@ export default function ChatModePage() {
   const [isSending, setIsSending] = useState(false)
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [hasGreeted, setHasGreeted] = useState(false)
+  const [isCharacterDialogOpen, setIsCharacterDialogOpen] = useState(false)
 
   // 滚动到底部
   useEffect(() => {
@@ -78,7 +80,10 @@ export default function ChatModePage() {
       try {
         setIsLoading(true)
         const response = await characterApi.getCharacters()
-        setCharacters(response.characters || [])
+        const charactersList = response.characters || []
+        console.log('加载到的角色数量:', charactersList.length)
+        console.log('角色列表:', charactersList.map((c: any) => c.name))
+        setCharacters(charactersList)
       } catch (error) {
         console.error('加载角色失败:', error)
         toast({
@@ -93,42 +98,24 @@ export default function ChatModePage() {
     loadCharacters()
   }, [toast])
 
-  // 如果有conversationId，加载对话；如果没有，清除状态并显示角色选择界面
+  // 如果有conversationId，加载对话；如果没有，保留角色选择状态
   useEffect(() => {
     if (conversationId) {
       loadConversation(Number(conversationId))
     } else {
-      // 当没有conversationId时，清除当前对话状态，显示角色选择界面
+      // 当没有conversationId时，清除对话相关状态，但保留角色选择
       setCurrentConversationId(null)
-      setSelectedCharacter(null)
       setMessages([])
       setHasGreeted(false)
       setInputValue('')
+      // 注意：不清除selectedCharacter，因为用户可能已经选择了角色但还没有发送消息
     }
   }, [conversationId])
+  
+  // 如果没有conversationId且没有选择角色，保持在选择角色页面（/chat-mode）
+  // 不需要导航，因为已经在正确的页面了
 
-  // 角色选择后加载欢迎语（后端已自动创建）
-  useEffect(() => {
-    if (selectedCharacter && currentConversationId && messages.length === 0 && !hasGreeted) {
-      loadGreeting()
-    }
-  }, [selectedCharacter, currentConversationId, messages.length, hasGreeted])
-
-  const loadGreeting = async () => {
-    if (!selectedCharacter || !currentConversationId || hasGreeted) return
-
-    try {
-      // 加载对话消息（包含后端自动创建的欢迎语）
-      const messagesResponse = await characterChatApi.getMessages(currentConversationId)
-      if (messagesResponse && messagesResponse.length > 0) {
-        setMessages(messagesResponse)
-        setHasGreeted(true)
-      }
-    } catch (error) {
-      console.error('加载欢迎语失败:', error)
-      setHasGreeted(true) // 即使失败也标记为已问候，避免重复尝试
-    }
-  }
+  // 不再需要加载欢迎语，因为欢迎语会在发送第一条消息时自动创建
 
   const loadConversation = async (id: number) => {
     try {
@@ -148,7 +135,7 @@ export default function ChatModePage() {
         // 不在这里添加到对话列表，只有在用户成功发送消息后才添加
       } else {
         // 静默处理，不显示toast
-        console.log('对话不存在，返回选择页面')
+        console.log('对话不存在，返回选择角色页面')
         navigate('/chat-mode', { replace: true })
       }
     } catch (error: any) {
@@ -168,31 +155,15 @@ export default function ChatModePage() {
   }
 
   const handleSelectCharacter = async (character: AICharacter) => {
-    try {
-      setIsLoading(true)
-      const response = await characterChatApi.createConversation({
-        character_id: character.id,
-        title: `与${character.name}的对话`
-      })
-      
-      setSelectedCharacter(character)
-      setCurrentConversationId(response.id)
-      setMessages([])
-      setHasGreeted(false)
-      
-      // 不在这里添加到对话列表，只有在用户成功发送消息后才添加
-      
-      navigate(`/chat-mode/${response.id}`, { replace: true })
-    } catch (error) {
-      console.error('创建对话失败:', error)
-      toast({
-        title: "创建失败",
-        description: "无法创建对话",
-        variant: "destructive"
-      })
-    } finally {
-      setIsLoading(false)
-    }
+    // 选择角色时不创建对话，只保存角色信息
+    // 只有当用户发送第一条消息时，才会创建对话
+    setSelectedCharacter(character)
+    setCurrentConversationId(null) // 清空对话ID，表示还没有创建对话
+    setMessages([])
+    setHasGreeted(false)
+    
+    // 导航到聊天页面（不带conversationId）
+    navigate('/chat-mode', { replace: true })
   }
 
   const handleSwitchCharacter = async (character: AICharacter) => {
@@ -201,7 +172,17 @@ export default function ChatModePage() {
   }
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !currentConversationId || isSending) return
+    if (!inputValue.trim() || isSending) return
+    
+    // 如果没有选择角色，不能发送消息
+    if (!selectedCharacter) {
+      toast({
+        title: "请先选择角色",
+        description: "请先选择一个AI角色",
+        variant: "destructive"
+      })
+      return
+    }
 
     const userMessage = inputValue.trim()
     setInputValue('')
@@ -215,7 +196,17 @@ export default function ChatModePage() {
     }
     setMessages(prev => [...prev, tempUserMessage])
 
-    // 不在这里添加到对话列表，只有在消息成功发送后才添加（在onDone回调中）
+    // 如果是第一条消息，先显示欢迎语占位符
+    if (!currentConversationId && messages.length === 0) {
+      const tempGreetingId = Date.now() + 0.5
+      const tempGreeting: Message = {
+        id: tempGreetingId,
+        role: 'assistant',
+        content: '...',
+        created_at: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, tempGreeting])
+    }
 
     // 创建AI消息占位符
     const tempAiMessageId = Date.now() + 1
@@ -231,24 +222,47 @@ export default function ChatModePage() {
       setIsSending(true)
       
       let fullContent = ''
+      let greetingReceived = false
       
       await characterChatApi.sendMessageStream(
         {
-          conversation_id: currentConversationId,
+          conversation_id: currentConversationId || undefined,
+          character_id: !currentConversationId ? selectedCharacter.id : undefined,
           message: userMessage
         },
         // onChunk: 接收流式内容
-        (content: string) => {
-          fullContent += content
-          // 更新AI消息内容
-          setMessages(prev => prev.map(msg => 
-            msg.id === tempAiMessageId 
-              ? { ...msg, content: fullContent }
-              : msg
-          ))
+        (content: string, isGreeting?: boolean) => {
+          if (isGreeting && !currentConversationId) {
+            // 第一条消息时，先接收欢迎语
+            if (!greetingReceived) {
+              greetingReceived = true
+              setMessages(prev => prev.map(msg => {
+                // 更新欢迎语占位符
+                if (msg.id === Date.now() + 0.5) {
+                  return { ...msg, content: content }
+                }
+                return msg
+              }))
+            }
+          } else {
+            fullContent += content
+            // 更新AI消息内容
+            setMessages(prev => prev.map(msg => 
+              msg.id === tempAiMessageId 
+                ? { ...msg, content: fullContent }
+                : msg
+            ))
+          }
         },
         // onDone: 流式完成（只有消息成功发送后才添加到最近对话）
-        async (messageId: number) => {
+        async (messageId: number, conversationId?: number) => {
+          // 如果是新创建的对话，更新对话ID并导航
+          if (conversationId && !currentConversationId) {
+            setCurrentConversationId(conversationId)
+            navigate(`/chat-mode/${conversationId}`, { replace: true })
+            setHasGreeted(true)
+          }
+          
           // 更新消息ID为服务器返回的真实ID
           setMessages(prev => prev.map(msg => 
             msg.id === tempAiMessageId 
@@ -257,10 +271,11 @@ export default function ChatModePage() {
           ))
           
           // 消息成功发送后，添加到侧边栏的对话列表
-          if (currentConversationId && selectedCharacter) {
+          const finalConversationId = conversationId || currentConversationId
+          if (finalConversationId && selectedCharacter) {
             try {
               const convResponse = await characterChatApi.getConversations({ page: 1, size: 100 })
-              const conversation = convResponse.conversations?.find((c: any) => c.id === currentConversationId)
+              const conversation = convResponse.conversations?.find((c: any) => c.id === finalConversationId)
               if (conversation) {
                 const conversationForSidebar = {
                   id: conversation.id,
@@ -302,9 +317,11 @@ export default function ChatModePage() {
             description: error || "消息发送失败，请重试",
             variant: "destructive"
           })
-          // 移除临时消息
+          // 移除临时消息（包括欢迎语占位符）
           setMessages(prev => prev.filter(m => 
-            m.id !== tempUserMessage.id && m.id !== tempAiMessageId
+            m.id !== tempUserMessage.id && 
+            m.id !== tempAiMessageId &&
+            m.id !== Date.now() + 0.5
           ))
           setIsSending(false)
         }
@@ -365,6 +382,32 @@ export default function ChatModePage() {
     }
   }
 
+  const getRarityOrder = (rarity: string) => {
+    switch (rarity) {
+      case 'legendary':
+        return 4
+      case 'epic':
+        return 3
+      case 'rare':
+        return 2
+      default:
+        return 1
+    }
+  }
+
+  const getRarityLabel = (rarity: string) => {
+    switch (rarity) {
+      case 'legendary':
+        return 'SSR'
+      case 'epic':
+        return 'SR'
+      case 'rare':
+        return 'R'
+      default:
+        return 'N'
+    }
+  }
+
   const getCategoryName = (category: string) => {
     switch (category) {
       case 'original':
@@ -373,16 +416,25 @@ export default function ChatModePage() {
         return '经典'
       case 'anime':
         return '动漫'
+      case 'tv_series':
+        return '影视剧'
       default:
         return category
     }
   }
 
-  const filteredCharacters = activeCategory === 'all' 
+  const filteredCharacters = (activeCategory === 'all' 
     ? characters 
     : characters.filter(c => c.category === activeCategory)
+  ).sort((a, b) => {
+    // 先按稀有度排序（从高到低）
+    const rarityDiff = getRarityOrder(b.rarity) - getRarityOrder(a.rarity)
+    if (rarityDiff !== 0) return rarityDiff
+    // 稀有度相同则按名称排序
+    return a.name.localeCompare(b.name, 'zh-CN')
+  })
 
-  const categories = ['all', 'original', 'classic', 'anime']
+  const categories = ['all', 'original', 'classic', 'anime', 'tv_series']
 
   // 如果没有选择角色，显示角色选择界面
   if (!selectedCharacter && !conversationId) {
@@ -419,45 +471,78 @@ export default function ChatModePage() {
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {filteredCharacters.map((character) => (
                   <Card
                     key={character.id}
-                    className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50"
+                    className="cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 border hover:border-primary/50 group overflow-hidden"
                     onClick={() => handleSelectCharacter(character)}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        {character.avatar_url ? (
-                          <img
-                            src={character.avatar_url}
-                            alt={character.name}
-                            className="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-primary/20"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                            <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-foreground truncate">{character.name}</h3>
-                            <Badge className={`text-xs text-white bg-gradient-to-r ${getRarityColor(character.rarity)}`}>
-                              {character.rarity === 'legendary' ? '传说' :
-                               character.rarity === 'epic' ? '史诗' :
-                               character.rarity === 'rare' ? '稀有' : '普通'}
-                            </Badge>
-                          </div>
-                          {character.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {character.description}
-                            </p>
+                    <CardContent className="p-3">
+                      <div className="flex flex-col h-full">
+                        {/* 头像区域 */}
+                        <div className="relative mx-auto mb-2">
+                          {character.avatar_url ? (
+                            <img
+                              src={character.avatar_url}
+                              alt={character.name}
+                              className="w-16 h-16 rounded-full object-cover border-2 border-primary/20 group-hover:border-primary/50 transition-colors"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center border-2 border-primary/20 group-hover:border-primary/50 transition-colors">
+                              <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                            </div>
                           )}
+                          {/* 稀有度角标 */}
+                          <div className={`absolute -top-1 -right-1 w-6 h-6 rounded-full bg-gradient-to-r ${getRarityColor(character.rarity)} flex items-center justify-center border-2 border-background shadow-sm`}>
+                            <span className="text-[10px] font-bold text-white leading-none">
+                              {getRarityLabel(character.rarity)}
+                            </span>
+                          </div>
                         </div>
+                        
+                        {/* 名称 */}
+                        <h3 className="font-semibold text-sm text-foreground text-center mb-2 line-clamp-1">
+                          {character.name}
+                        </h3>
+                        
+                        {/* 标签 */}
+                        <div className="flex items-center justify-center gap-1 mb-2 flex-wrap">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+                            {getCategoryName(character.category)}
+                          </Badge>
+                        </div>
+                        
+                        {/* 描述 */}
+                        {character.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed text-center flex-1">
+                            {character.description}
+                          </p>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
                 ))}
+                
+                {/* 管理角色卡片 */}
+                <Card
+                  className="cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 border-2 border-dashed border-primary/50 hover:border-primary group overflow-hidden"
+                  onClick={() => navigate('/character-management')}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex flex-col h-full items-center justify-center min-h-[180px]">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center border-2 border-primary/20 group-hover:border-primary/50 transition-colors mb-3">
+                        <Settings className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <h3 className="font-semibold text-sm text-foreground text-center mb-2">
+                        管理角色
+                      </h3>
+                      <p className="text-xs text-muted-foreground text-center">
+                        解锁和管理角色
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>
@@ -469,6 +554,27 @@ export default function ChatModePage() {
   // 正常聊天界面 - 豆包风格
   return (
     <div className="h-full flex flex-col bg-background">
+      {/* 返回按钮 - 只在未进行对话时显示 */}
+      {messages.length === 0 && selectedCharacter && (
+        <div className="p-4 border-b border-border/50">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSelectedCharacter(null)
+              setCurrentConversationId(null)
+              setMessages([])
+              setHasGreeted(false)
+              setInputValue('')
+              navigate('/chat-mode')
+            }}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回角色选择
+          </Button>
+        </div>
+      )}
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto bg-background">
         {messages.length === 0 ? (
@@ -609,61 +715,102 @@ export default function ChatModePage() {
               <div className="flex items-center gap-2">
                 {/* 角色选择器 */}
                 {selectedCharacter && (
-                  <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-3 flex items-center gap-2"
-                      >
-                        {selectedCharacter.avatar_url ? (
-                          <img
-                            src={selectedCharacter.avatar_url}
-                            alt={selectedCharacter.name}
-                            className="w-6 h-6 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
-                            <Users className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                          </div>
-                        )}
-                        <span className="text-sm">{selectedCharacter.name}</span>
-                        <ChevronDown className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-64">
-                      <DropdownMenuLabel>切换角色</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {characters.map((character) => (
-                        <DropdownMenuItem
-                          key={character.id}
-                          onClick={() => handleSwitchCharacter(character)}
-                          className="flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2">
-                            {character.avatar_url ? (
-                              <img
-                                src={character.avatar_url}
-                                alt={character.name}
-                                className="w-6 h-6 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
-                                <Users className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                              </div>
-                            )}
-                            <div>
-                              <div className="font-medium">{character.name}</div>
-                              <div className="text-xs text-muted-foreground">{getCategoryName(character.category)}</div>
-                            </div>
-                          </div>
-                          {selectedCharacter?.id === character.id && (
-                            <Check className="h-4 w-4" />
-                          )}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-3 flex items-center gap-2"
+                      onClick={() => setIsCharacterDialogOpen(true)}
+                    >
+                      {selectedCharacter.avatar_url ? (
+                        <img
+                          src={selectedCharacter.avatar_url}
+                          alt={selectedCharacter.name}
+                          className="w-6 h-6 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
+                          <Users className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                        </div>
+                      )}
+                      <span className="text-sm">{selectedCharacter.name}</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                    
+                    {/* 角色选择对话框 */}
+                    <Dialog open={isCharacterDialogOpen} onOpenChange={setIsCharacterDialogOpen}>
+                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>切换角色</DialogTitle>
+                          <DialogDescription>
+                            选择一个角色开始对话
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                          {characters
+                            .sort((a, b) => {
+                              const rarityDiff = getRarityOrder(b.rarity) - getRarityOrder(a.rarity)
+                              if (rarityDiff !== 0) return rarityDiff
+                              return a.name.localeCompare(b.name, 'zh-CN')
+                            })
+                            .map((character) => (
+                            <Card
+                              key={character.id}
+                              className={cn(
+                                "cursor-pointer hover:shadow-md transition-all duration-200 border-2",
+                                selectedCharacter?.id === character.id 
+                                  ? "border-primary bg-primary/5" 
+                                  : "hover:border-primary/50"
+                              )}
+                              onClick={() => {
+                                handleSwitchCharacter(character)
+                                setIsCharacterDialogOpen(false)
+                              }}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-start gap-3">
+                                  {character.avatar_url ? (
+                                    <img
+                                      src={character.avatar_url}
+                                      alt={character.name}
+                                      className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-primary/20"
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                                      <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h3 className="font-semibold text-sm text-foreground truncate">
+                                        {character.name}
+                                      </h3>
+                                      {selectedCharacter?.id === character.id && (
+                                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Badge className={`text-xs text-white bg-gradient-to-r ${getRarityColor(character.rarity)}`}>
+                                        {getRarityLabel(character.rarity)}
+                                      </Badge>
+                                      <Badge variant="outline" className="text-xs">
+                                        {getCategoryName(character.category)}
+                                      </Badge>
+                                    </div>
+                                    {character.description && (
+                                      <p className="text-xs text-muted-foreground line-clamp-2">
+                                        {character.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </>
                 )}
                 
                 <MultiImageUploader
