@@ -62,7 +62,7 @@ class AnalysisCardResponse(AnalysisCardBase, IDMixin, TimestampMixin):
     """分析卡片响应模式"""
     
     user_id: Optional[int] = Field(None, description="用户ID")
-    conversation_id: int = Field(..., description="会话ID")
+    conversation_id: Optional[int] = Field(None, description="会话ID（角色对话和卡片模式为None）")
     is_favorite: bool = Field(..., description="是否收藏")
     is_public: bool = Field(..., description="是否公开")
     tags: Optional[List[str]] = Field(None, description="标签列表")

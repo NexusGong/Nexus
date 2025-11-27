@@ -217,20 +217,25 @@ export default function Sidebar() {
         await conversationApi.deleteConversation(conversationToDelete)
       }
       
+      // 先检查是否是当前对话
+      const currentPath = location.pathname
+      const isCurrentConversation = currentPath === `/chat/${conversationToDelete}` || 
+                                    currentPath === `/chat-mode/${conversationToDelete}` ||
+                                    currentPath.includes(`/${conversationToDelete}`)
+      
+      // 从store中移除对话
       removeConversation(conversationToDelete)
       
-      // 删除成功后，如果删除的是当前对话，跳转到新建对话页面
-      const currentPath = location.pathname
-      if (currentPath === `/chat/${conversationToDelete}` || currentPath === `/chat-mode/${conversationToDelete}`) {
-        clearCurrentChat()
-        if (isCharacterChat) {
-          navigate('/chat-mode', { replace: true })
-        } else {
-          navigate('/chat', { replace: true })
-        }
-      } else {
-        // 即使删除的不是当前对话，也确保清除当前对话状态（如果匹配）
-        clearCurrentChat()
+      // 清除当前对话状态
+      clearCurrentChat()
+      
+      // 如果是角色对话且删除的是当前对话，立即跳转
+      if (isCharacterChat && isCurrentConversation) {
+        // 立即导航，不等待状态更新
+        navigate('/chat-mode', { replace: true })
+      } else if (!isCharacterChat && isCurrentConversation) {
+        // 普通对话，删除当前对话时跳转
+        navigate('/chat', { replace: true })
       }
     } catch (error) {
       console.error('删除对话失败:', error)

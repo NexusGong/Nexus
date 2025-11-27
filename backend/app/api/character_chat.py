@@ -182,15 +182,15 @@ async def create_character_conversation_stream(
                 accumulated = ""
                 for i, char in enumerate(words):
                     accumulated += char
-                    # 每10个字符发送一次，或者遇到标点符号时发送
-                    if (i + 1) % 10 == 0 or char in ['。', '！', '？', '\n']:
+                    # 每2-3个字符发送一次，或者遇到标点符号时发送，使输出更流畅
+                    if (i + 1) % 3 == 0 or char in ['。', '！', '？', '\n', '，', '、', '：', '；']:
                         yield f"data: {json.dumps({'greeting': accumulated, 'conversation_id': db_conversation.id, 'done': False})}\n\n"
-                        await asyncio.sleep(0.05)  # 模拟打字延迟
+                        await asyncio.sleep(0.03)  # 缩短延迟时间，使输出更流畅
                 
                 # 如果还有剩余内容未发送，发送完整的欢迎语
                 if accumulated != greeting:
                     yield f"data: {json.dumps({'greeting': greeting, 'conversation_id': db_conversation.id, 'done': False})}\n\n"
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(0.03)
                 
                 # 发送完成标志
                 yield f"data: {json.dumps({'greeting': greeting, 'conversation_id': db_conversation.id, 'done': True})}\n\n"
@@ -494,10 +494,9 @@ async def send_character_message_stream(
                         "content": msg.content
                     })
                 
-                # 获取角色的分析Prompt
-                from app.utils.character_greetings import get_character_analysis_prompt
-                analysis_prompt = get_character_analysis_prompt(character.name)
-                system_prompt = analysis_prompt if analysis_prompt else character.system_prompt
+                # 获取角色的增强System Prompt
+                from app.utils.character_greetings import build_enhanced_system_prompt
+                system_prompt = build_enhanced_system_prompt(character)
                 
                 # 调用AI服务生成回复（流式）
                 from app.config import settings as app_settings
@@ -517,9 +516,11 @@ async def send_character_message_stream(
                         json={
                             "model": "deepseek-chat",
                             "messages": ai_messages,
-                            "max_tokens": 1000,
-                            "temperature": 0.7,
-                            "stream": True
+                            "max_tokens": 2000,  # 增加token数量，让回复更详细
+                            "temperature": 0.8,  # 提高temperature，让回复更有创意和角色特色
+                            "stream": True,
+                            # 如果启用搜索且API支持，添加搜索参数
+                            **({"web_search": True} if app_settings.deepseek_enable_search else {})
                         }
                     ) as response:
                         response.raise_for_status()
@@ -716,10 +717,9 @@ async def send_character_message(
                 "content": msg.content
             })
         
-        # 获取角色的分析Prompt（用于指导AI分析情绪和意图）
-        from app.utils.character_greetings import get_character_analysis_prompt
-        analysis_prompt = get_character_analysis_prompt(character.name)
-        system_prompt = analysis_prompt if analysis_prompt else character.system_prompt
+        # 获取角色的增强System Prompt
+        from app.utils.character_greetings import build_enhanced_system_prompt
+        system_prompt = build_enhanced_system_prompt(character)
         
         # 调用AI服务生成回复
         from app.config import settings as app_settings
@@ -737,8 +737,10 @@ async def send_character_message(
                 json={
                     "model": "deepseek-chat",
                     "messages": ai_messages,
-                    "max_tokens": 1000,
-                    "temperature": 0.7
+                    "max_tokens": 2000,  # 增加token数量，让回复更详细
+                    "temperature": 0.8,  # 提高temperature，让回复更有创意和角色特色
+                    # 如果启用搜索且API支持，添加搜索参数
+                    **({"web_search": True} if app_settings.deepseek_enable_search else {})
                 }
             )
             response.raise_for_status()
@@ -929,9 +931,20 @@ async def generate_card_from_chat(
         
         logger.info(f"从角色对话生成卡片: {db_card.id}")
         
+        # 返回完整的卡片数据
         return {
             "card_id": db_card.id,
-            "message": "卡片生成成功"
+            "message": "卡片生成成功",
+            "card": {
+                "id": db_card.id,
+                "title": db_card.title,
+                "description": db_card.description,
+                "original_content": db_card.original_content,
+                "analysis_data": db_card.analysis_data,
+                "response_suggestions": db_card.response_suggestions,
+                "context_mode": db_card.context_mode,
+                "created_at": db_card.created_at.isoformat() if db_card.created_at else None
+            }
         }
         
     except HTTPException:

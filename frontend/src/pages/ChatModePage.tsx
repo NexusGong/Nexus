@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +34,9 @@ import {
 import UnlockDialog from '@/components/Character/UnlockDialog'
 import LoginDialog from '@/components/Auth/LoginDialog'
 import RegisterDialog from '@/components/Auth/RegisterDialog'
+import CardPreview from '@/components/Chat/CardPreview'
+import CardDrawAnimation from '@/components/CardMode/CardDrawAnimation'
+import { Sparkles } from 'lucide-react'
 
 interface AICharacter {
   id: number
@@ -59,9 +62,10 @@ interface Message {
 export default function ChatModePage() {
   const { conversationId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { addConversation, updateConversation } = useChatStore()
+  const { addConversation, updateConversation, conversations } = useChatStore()
   const { user, isAuthenticated } = useAuthStore()
   
   const [characters, setCharacters] = useState<AICharacter[]>([])
@@ -78,6 +82,11 @@ export default function ChatModePage() {
   const [characterToUnlock, setCharacterToUnlock] = useState<AICharacter | null>(null)
   const [loginDialogOpen, setLoginDialogOpen] = useState(false)
   const [registerDialogOpen, setRegisterDialogOpen] = useState(false)
+  const [generatedCard, setGeneratedCard] = useState<any>(null)
+  const [isGeneratingCard, setIsGeneratingCard] = useState(false)
+  const [isSavingCard, setIsSavingCard] = useState(false)
+  const [showCardAnimation, setShowCardAnimation] = useState(false)
+  const [cardProgressText, setCardProgressText] = useState('')
 
   // 滚动到底部
   useEffect(() => {
@@ -89,10 +98,45 @@ export default function ChatModePage() {
     loadCharacters()
   }, [toast, isAuthenticated])
 
+  // 监听对话列表变化，如果当前对话被删除，清除状态并跳转
+  useEffect(() => {
+    // 如果URL中有conversationId，检查该对话是否还存在
+    if (conversationId) {
+      const id = Number(conversationId)
+      // 检查对话是否还在对话列表中
+      const conversationExists = conversations.some((conv: any) => 
+        conv.id === id && conv.context_mode === 'character_chat'
+      )
+      
+      if (!conversationExists) {
+        // 对话已被删除，立即清除所有状态并跳转到角色选择页面
+        setSelectedCharacter(null)
+        setCurrentConversationId(null)
+        setMessages([])
+        setHasGreeted(false)
+        setInputValue('')
+        setGeneratedCard(null)
+        // 强制导航到/chat-mode，确保URL更新
+        navigate('/chat-mode', { replace: true })
+      }
+    }
+  }, [conversations, conversationId, navigate])
+
   // 如果有conversationId，加载对话；如果没有，保留角色选择状态
   useEffect(() => {
     if (conversationId) {
       const id = Number(conversationId)
+      
+      // 先检查对话是否还存在（防止加载已删除的对话）
+      const conversationExists = conversations.some((conv: any) => 
+        conv.id === id && conv.context_mode === 'character_chat'
+      )
+      
+      if (!conversationExists) {
+        // 对话不存在，清除状态并跳转（这个逻辑已经在第一个useEffect中处理，这里作为双重保险）
+        return
+      }
+      
       // 如果当前已经有相同的conversationId且正在显示消息，不重新加载
       if (currentConversationId === id && messages.length > 0) {
         // 已经在显示对话，不重新加载
@@ -107,10 +151,11 @@ export default function ChatModePage() {
         setMessages([])
         setHasGreeted(false)
         setInputValue('')
+        setGeneratedCard(null)
       }
       // 注意：不清除selectedCharacter，因为用户可能已经选择了角色但还没有发送消息
     }
-  }, [conversationId, currentConversationId, messages.length, selectedCharacter])
+  }, [conversationId, currentConversationId, messages.length, selectedCharacter, conversations])
   
   // 如果没有conversationId且没有选择角色，保持在选择角色页面（/chat-mode）
   // 不需要导航，因为已经在正确的页面了
@@ -463,27 +508,108 @@ export default function ChatModePage() {
     if (!currentConversationId) return
 
     try {
-      setIsLoading(true)
-      await characterChatApi.generateCard({
+      setIsGeneratingCard(true)
+      setShowCardAnimation(true)
+      setCardProgressText('正在分析对话内容...')
+      
+      // 模拟进度更新
+      const progressSteps = [
+        '正在分析对话内容...',
+        '正在理解沟通意图...',
+        '正在分析情感状态...',
+        '正在提取关键信息...',
+        '正在生成分析结果...',
+        '正在制作精美卡片...'
+      ]
+      
+      let progressIndex = 0
+      const progressInterval = setInterval(() => {
+        if (progressIndex < progressSteps.length - 1) {
+          progressIndex++
+          setCardProgressText(progressSteps[progressIndex])
+        }
+      }, 800)
+      
+      const response = await characterChatApi.generateCard({
         conversation_id: currentConversationId
       })
       
-      toast({
-        title: "卡片生成成功",
-        description: "分析卡片已保存",
-        duration: 2000
-      })
+      clearInterval(progressInterval)
+      setCardProgressText('卡片生成完成！')
       
-      navigate('/cards')
+      // 等待动画完成
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      setShowCardAnimation(false)
+      
+      // 设置生成的卡片数据
+      if (response.card) {
+        setGeneratedCard(response.card)
+        toast({
+          title: "✨ 卡片生成成功！",
+          description: "恭喜获得新的沟通分析卡片",
+          duration: 3000
+        })
+      } else {
+        // 如果没有返回卡片数据，尝试获取卡片详情
+        toast({
+          title: "卡片生成成功",
+          description: "分析卡片已保存",
+          duration: 2000
+        })
+        navigate('/cards')
+      }
     } catch (error) {
       console.error('生成卡片失败:', error)
+      setShowCardAnimation(false)
       toast({
         title: "生成失败",
-        description: "无法生成卡片",
+        description: "无法生成卡片，请重试",
         variant: "destructive"
       })
     } finally {
-      setIsLoading(false)
+      setIsGeneratingCard(false)
+    }
+  }
+
+  const handleSaveCard = async () => {
+    if (!generatedCard) return
+
+    try {
+      setIsSavingCard(true)
+      // 卡片已经在生成时保存到数据库，这里只需要提示成功
+      toast({
+        title: "卡片已保存",
+        description: "卡片已保存到你的卡片库",
+        duration: 2000
+      })
+    } catch (error) {
+      console.error('保存卡片失败:', error)
+      toast({
+        title: "保存失败",
+        description: "无法保存卡片",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSavingCard(false)
+    }
+  }
+
+  const handleRegenerateCard = async () => {
+    // 重新生成卡片
+    await handleGenerateCardFromMessage()
+  }
+
+  const handleContinueConversation = () => {
+    // 隐藏卡片预览，继续对话
+    setGeneratedCard(null)
+  }
+
+  const handleViewCardDetail = () => {
+    // 跳转到卡片详情页
+    if (generatedCard?.id) {
+      navigate(`/cards?view=${generatedCard.id}`)
+    } else {
+      navigate('/cards')
     }
   }
 
@@ -759,10 +885,21 @@ export default function ChatModePage() {
   }
 
   // 正常聊天界面 - 豆包风格
+  // 检查是否有用户消息（不包括欢迎语）
+  const hasUserMessage = messages.some(msg => msg.role === 'user')
+  
   return (
     <div className="h-full flex flex-col bg-background">
-      {/* 返回按钮 - 只在未进行对话时显示 */}
-      {messages.length === 0 && selectedCharacter && (
+      {/* 抽卡动画 */}
+      <CardDrawAnimation 
+        isActive={showCardAnimation}
+        progressText={cardProgressText}
+        onComplete={() => {
+          setShowCardAnimation(false)
+        }}
+      />
+      {/* 返回按钮 - 在没有用户消息时显示（包括欢迎语显示时） */}
+      {!hasUserMessage && selectedCharacter && (
         <div className="p-4 border-b border-border/50">
           <Button
             variant="ghost"
@@ -889,6 +1026,21 @@ export default function ChatModePage() {
                 </div>
               ))}
               <div ref={messagesEndRef} />
+              
+              {/* 卡片预览区域 */}
+              {generatedCard && (
+                <div className="max-w-4xl mx-auto mt-4">
+                  <CardPreview
+                    card={generatedCard}
+                    onSave={handleSaveCard}
+                    onRegenerate={handleRegenerateCard}
+                    onContinue={handleContinueConversation}
+                    onExport={handleViewCardDetail}
+                    isSaving={isSavingCard}
+                    isRegenerating={isGeneratingCard}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1052,6 +1204,30 @@ export default function ChatModePage() {
                   }}
                   disabled={isSending}
                 />
+                
+                {/* 生成卡片按钮 - 当有对话历史时显示 */}
+                {currentConversationId && messages.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateCardFromMessage}
+                    disabled={isGeneratingCard || isSending}
+                    className="h-8 px-3 flex items-center gap-2"
+                    title="生成沟通分析卡片"
+                  >
+                    {isGeneratingCard ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="text-xs">生成中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3 w-3" />
+                        <span className="text-xs">生成卡片</span>
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
               
               {/* 右侧操作按钮 */}

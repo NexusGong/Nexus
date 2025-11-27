@@ -19,7 +19,7 @@ class AnalysisCard(Base):
     
     # 外键关联
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="用户ID")
-    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, comment="会话ID")
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True, comment="会话ID（普通对话，角色对话和卡片模式为NULL）")
     session_token = Column(String(255), nullable=True, index=True, comment="会话Token（非登录用户使用）")
     
     # 卡片基本信息

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # DeepSeek API配置
     deepseek_api_key: str = Field(description="DeepSeek API密钥")
     deepseek_api_base: str = Field(default="https://api.deepseek.com", description="DeepSeek API基础URL")
+    deepseek_enable_search: bool = Field(default=False, description="是否启用DeepSeek搜索功能（如果API支持）")
 
     # 火山引擎OCR配置（通用文字识别服务）
     volc_access_key_id: str = Field(default="", description="火山引擎AccessKeyId")
