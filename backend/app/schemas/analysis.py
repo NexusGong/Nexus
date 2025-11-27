@@ -45,7 +45,7 @@ class AnalysisCardBase(BaseSchema):
 class AnalysisCardCreate(AnalysisCardBase):
     """创建分析卡片请求模式"""
     
-    conversation_id: int = Field(..., description="会话ID")
+    conversation_id: Optional[int] = Field(None, description="会话ID（卡片模式可以为空）")
 
 
 class AnalysisCardUpdate(BaseSchema):

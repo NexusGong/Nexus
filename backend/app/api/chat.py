@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.schemas.conversation import ConversationCreate, ConversationResponse, ConversationListResponse
-from app.schemas.message import ChatRequest, ChatResponse, MessageResponse
+from app.schemas.message import ChatRequest, ChatResponse, MessageResponse, CardModeAnalyzeRequest
 from app.schemas.analysis import OCRRequest, OCRResponse
 from app.services.ocr_service import volc_ocr_service, doubao_ocr_service
 from app.services.usage_limit_service import (
@@ -373,6 +373,78 @@ async def analyze_chat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="聊天分析失败"
+        )
+
+
+@router.post("/analyze-card-mode", response_model=ChatResponse)
+async def analyze_chat_card_mode(
+    request_data: CardModeAnalyzeRequest,
+    request_obj: Request = None,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    卡片模式：分析聊天内容并生成回复建议（不保存对话）
+    
+    Args:
+        request_data: 卡片模式分析请求
+        request_obj: FastAPI请求对象
+        db: 数据库会话
+        current_user: 当前用户（可选）
+        
+    Returns:
+        ChatResponse: 分析结果和回复建议（不包含message字段，因为不保存对话）
+    """
+    try:
+        
+        # 使用AI分析聊天内容（不保存对话）
+        analysis_result = await ai_service.analyze_chat_content(
+            chat_content=request_data.message,
+            context_mode=request_data.context_mode
+        )
+        
+        # 生成回复建议
+        suggestions = await ai_service.generate_response_suggestions(
+            chat_content=request_data.message,
+            analysis_result=analysis_result,
+            context_mode=request_data.context_mode
+        )
+        
+        # 创建一个临时的MessageResponse用于返回（不保存到数据库）
+        from app.schemas.message import MessageResponse
+        from datetime import datetime
+        temp_message = MessageResponse(
+            id=0,  # 临时ID
+            conversation_id=0,  # 临时ID
+            role="assistant",
+            content="",  # 卡片模式不需要消息内容
+            message_type="analysis",
+            source="card_mode",
+            analysis_result=analysis_result.model_dump(),
+            analysis_metadata={
+                "context_mode": request_data.context_mode,
+                "suggestions": [suggestion.model_dump() for suggestion in suggestions],
+                "suggestions_count": len(suggestions)
+            },
+            is_processed=True,
+            is_archived=False,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        
+        logger.info(f"卡片模式分析完成（不保存对话）")
+        
+        return ChatResponse(
+            message=temp_message,
+            analysis=analysis_result.model_dump(),
+            suggestions=[suggestion.model_dump() for suggestion in suggestions]
+        )
+        
+    except Exception as e:
+        logger.error(f"卡片模式分析失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="卡片模式分析失败"
         )
 
 

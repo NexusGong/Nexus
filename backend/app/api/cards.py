@@ -43,22 +43,24 @@ async def create_analysis_card(
         # 获取客户端信息
         ip_address, session_token = get_client_info(request)
         
-        # 验证对话是否存在
-        conversation = db.query(Conversation).filter(Conversation.id == card_data.conversation_id).first()
-        if not conversation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="对话不存在"
-            )
-        
-        # 获取对话时间（最新用户消息的时间）
-        from app.models.message import Message
-        latest_user_message = db.query(Message).filter(
-            Message.conversation_id == card_data.conversation_id,
-            Message.role == 'user'
-        ).order_by(Message.created_at.desc()).first()
-        
-        conversation_time = latest_user_message.created_at if latest_user_message else None
+        # 验证对话是否存在（如果提供了conversation_id）
+        conversation_time = None
+        if card_data.conversation_id:
+            conversation = db.query(Conversation).filter(Conversation.id == card_data.conversation_id).first()
+            if not conversation:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="对话不存在"
+                )
+            
+            # 获取对话时间（最新用户消息的时间）
+            from app.models.message import Message
+            latest_user_message = db.query(Message).filter(
+                Message.conversation_id == card_data.conversation_id,
+                Message.role == 'user'
+            ).order_by(Message.created_at.desc()).first()
+            
+            conversation_time = latest_user_message.created_at if latest_user_message else None
         
         # 创建分析卡片
         db_card = AnalysisCard(

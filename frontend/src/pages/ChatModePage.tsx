@@ -92,16 +92,25 @@ export default function ChatModePage() {
   // 如果有conversationId，加载对话；如果没有，保留角色选择状态
   useEffect(() => {
     if (conversationId) {
-      loadConversation(Number(conversationId))
+      const id = Number(conversationId)
+      // 如果当前已经有相同的conversationId且正在显示消息，不重新加载
+      if (currentConversationId === id && messages.length > 0) {
+        // 已经在显示对话，不重新加载
+        return
+      }
+      loadConversation(id)
     } else {
       // 当没有conversationId时，清除对话相关状态，但保留角色选择
-      setCurrentConversationId(null)
-      setMessages([])
-      setHasGreeted(false)
-      setInputValue('')
+      // 只有在确实没有选择角色时才清除
+      if (!selectedCharacter) {
+        setCurrentConversationId(null)
+        setMessages([])
+        setHasGreeted(false)
+        setInputValue('')
+      }
       // 注意：不清除selectedCharacter，因为用户可能已经选择了角色但还没有发送消息
     }
-  }, [conversationId])
+  }, [conversationId, currentConversationId, messages.length, selectedCharacter])
   
   // 如果没有conversationId且没有选择角色，保持在选择角色页面（/chat-mode）
   // 不需要导航，因为已经在正确的页面了
@@ -162,15 +171,70 @@ export default function ChatModePage() {
       return
     }
 
-    // 选择角色时不创建对话，只保存角色信息
-    // 只有当用户发送第一条消息时，才会创建对话
+    // 选择角色后立即创建对话并显示greetings
     setSelectedCharacter(character)
-    setCurrentConversationId(null) // 清空对话ID，表示还没有创建对话
     setMessages([])
     setHasGreeted(false)
+    setIsLoading(true)
     
     // 导航到聊天页面（不带conversationId）
     navigate('/chat-mode', { replace: true })
+    
+    try {
+      // 创建临时greeting消息占位符
+      const tempGreetingId = Date.now()
+      const tempGreeting: Message = {
+        id: tempGreetingId,
+        role: 'assistant',
+        content: '',
+        created_at: new Date().toISOString()
+      }
+      setMessages([tempGreeting])
+      
+      // 创建对话并流式显示greetings
+      await characterChatApi.createConversationStream(
+        {
+          character_id: character.id,
+          title: `与${character.name}的对话`
+        },
+        // onChunk: 接收流式greetings
+        (greeting: string, conversationId: number, done: boolean) => {
+          setCurrentConversationId(conversationId)
+          setMessages(prev => prev.map(msg => 
+            msg.id === tempGreetingId 
+              ? { ...msg, content: greeting }
+              : msg
+          ))
+          if (done) {
+            setHasGreeted(true)
+            setIsLoading(false)
+            // 更新URL但不触发重新加载（使用replace: true避免触发useEffect）
+            // 使用window.history.replaceState来避免触发useEffect
+            window.history.replaceState(null, '', `/chat-mode/${conversationId}`)
+          }
+        },
+        // onError: 错误处理
+        (error: string) => {
+          console.error('创建对话失败:', error)
+          toast({
+            title: "创建失败",
+            description: error || "无法创建对话，请重试",
+            variant: "destructive"
+          })
+          setMessages([])
+          setIsLoading(false)
+        }
+      )
+    } catch (error: any) {
+      console.error('创建对话失败:', error)
+      toast({
+        title: "创建失败",
+        description: error.message || "无法创建对话，请重试",
+        variant: "destructive"
+      })
+      setMessages([])
+      setIsLoading(false)
+    }
   }
 
   const handleUnlockSuccess = () => {

@@ -165,6 +165,19 @@ export const chatApi = {
     return response.data
   },
 
+  // 卡片模式：分析聊天内容（不保存对话）
+  analyzeChatCardMode: async (data: {
+    message: string
+    context_mode?: string
+  }): Promise<{
+    message: Message
+    analysis: AnalysisResult
+    suggestions: ResponseSuggestion[]
+  }> => {
+    const response = await api.post('/chat/analyze-card-mode', data)
+    return response.data
+  },
+
   // OCR识别（单张图片）
   extractTextFromImage: async (file: File): Promise<{
     text: string
@@ -217,7 +230,7 @@ export const cardApi = {
     response_suggestions?: ResponseSuggestion[]
     context_mode?: string
     card_template?: string
-    conversation_id: number
+    conversation_id?: number | null
   }) => {
     const response = await api.post('/cards/', data)
     return response.data
@@ -393,6 +406,87 @@ export const characterChatApi = {
   }) => {
     const response = await api.post('/character-chat/conversations', data)
     return response.data
+  },
+
+  // 创建角色对话并流式返回欢迎语
+  createConversationStream: async (
+    data: {
+      character_id: number
+      title?: string
+    },
+    onChunk: (greeting: string, conversationId: number, done: boolean) => void,
+    onError: (error: string) => void
+  ): Promise<void> => {
+    const token = localStorage.getItem('auth_token')
+    const authStore = useAuthStore.getState()
+    const sessionToken = authStore.getSessionToken()
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+    
+    if (sessionToken) {
+      headers['X-Session-Token'] = sessionToken
+    }
+    
+    const response = await fetch('/api/character-chat/conversations/stream', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: '请求失败' }))
+      onError(error.detail || '请求失败')
+      return
+    }
+    
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+    
+    if (!reader) {
+      onError('无法读取响应流')
+      return
+    }
+    
+    let buffer = ''
+    let conversationId = 0
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) {
+        break
+      }
+      
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            
+            if (data.error) {
+              onError(data.error)
+              return
+            }
+            
+            if (data.greeting && data.conversation_id) {
+              conversationId = data.conversation_id
+              onChunk(data.greeting, conversationId, data.done || false)
+            }
+          } catch (e) {
+            console.error('解析流数据失败:', e)
+          }
+        }
+      }
+    }
   },
 
   // 获取角色对话列表

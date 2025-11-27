@@ -57,6 +57,13 @@ class ChatRequest(BaseSchema):
     analysis_focus: Optional[Dict[str, Any]] = Field(None, description="分析重点")
 
 
+class CardModeAnalyzeRequest(BaseSchema):
+    """卡片模式分析请求模式（不保存对话）"""
+    
+    message: str = Field(..., min_length=1, description="用户消息")
+    context_mode: Optional[str] = Field(default="card_mode", description="情景模式")
+
+
 class ChatResponse(BaseSchema):
     """聊天响应模式"""
     

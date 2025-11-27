@@ -121,6 +121,108 @@ async def create_character_conversation(
         )
 
 
+@router.post("/conversations/stream")
+async def create_character_conversation_stream(
+    conversation: CharacterConversationCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    创建角色对话并流式返回欢迎语
+    """
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    async def generate_stream():
+        try:
+            from app.database import SessionLocal
+            local_db = SessionLocal()
+            try:
+                # 验证角色是否存在
+                character = local_db.query(AICharacter).filter(
+                    AICharacter.id == conversation.character_id,
+                    AICharacter.is_active == True
+                ).first()
+                
+                if not character:
+                    yield f"data: {json.dumps({'error': '角色不存在'})}\n\n"
+                    return
+                
+                # 获取客户端信息
+                ip_address, session_token = get_client_info(request)
+                
+                # 创建对话
+                db_conversation = CharacterConversation(
+                    title=conversation.title or f"与{character.name}的对话",
+                    character_id=conversation.character_id,
+                    user_id=current_user.id if current_user else None,
+                    session_token=session_token if not current_user else None
+                )
+                
+                local_db.add(db_conversation)
+                local_db.commit()
+                local_db.refresh(db_conversation)
+                
+                logger.info(f"创建角色对话: {db_conversation.id}, 角色: {character.name}")
+                
+                # 获取角色欢迎语
+                from app.utils.character_greetings import get_character_greeting, get_default_greeting
+                greeting = get_character_greeting(character.name)
+                if not greeting:
+                    greeting = get_default_greeting(
+                        character.name,
+                        character.personality,
+                        character.speaking_style,
+                        character.description
+                    )
+                
+                # 流式返回欢迎语（模拟打字效果）
+                words = list(greeting)
+                accumulated = ""
+                for i, char in enumerate(words):
+                    accumulated += char
+                    # 每10个字符发送一次，或者遇到标点符号时发送
+                    if (i + 1) % 10 == 0 or char in ['。', '！', '？', '\n']:
+                        yield f"data: {json.dumps({'greeting': accumulated, 'conversation_id': db_conversation.id, 'done': False})}\n\n"
+                        await asyncio.sleep(0.05)  # 模拟打字延迟
+                
+                # 如果还有剩余内容未发送，发送完整的欢迎语
+                if accumulated != greeting:
+                    yield f"data: {json.dumps({'greeting': greeting, 'conversation_id': db_conversation.id, 'done': False})}\n\n"
+                    await asyncio.sleep(0.05)
+                
+                # 发送完成标志
+                yield f"data: {json.dumps({'greeting': greeting, 'conversation_id': db_conversation.id, 'done': True})}\n\n"
+                
+                # 将欢迎语作为第一条消息保存
+                greeting_message = CharacterMessage(
+                    conversation_id=db_conversation.id,
+                    role="assistant",
+                    content=greeting
+                )
+                local_db.add(greeting_message)
+                db_conversation.message_count = 1
+                local_db.commit()
+                
+            finally:
+                local_db.close()
+        except Exception as e:
+            logger.error(f"创建角色对话流式返回失败: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    
+    import asyncio
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 @router.get("/conversations", response_model=CharacterConversationListResponse)
 async def get_character_conversations(
     request: Request,

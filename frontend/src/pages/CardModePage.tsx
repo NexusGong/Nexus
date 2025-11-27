@@ -55,24 +55,11 @@ export default function CardModePage() {
     try {
       const chatContent = inputValue.trim()
 
-      // 创建临时对话用于分析（不保存到历史记录）
-      setProgress(10)
-      setProgressText('正在准备分析...')
-      
-      const conversation = await conversationApi.createConversation({
-        title: `临时对话 - ${chatContent.slice(0, 20)}${chatContent.length > 20 ? '...' : ''}`,
-        context_mode: 'card_mode'
-      })
-
-      // 不添加到历史记录
-      // addConversation(conversation)
-      // setCurrentConversation(conversation)
-
       setProgress(20)
       setProgressText('AI正在分析内容...')
       
-      const analysisResponse = await chatApi.analyzeChat({
-        conversation_id: conversation.id,
+      // 直接分析，不创建对话
+      const analysisResponse = await chatApi.analyzeChatCardMode({
         message: chatContent,
         context_mode: 'card_mode'
       })
@@ -89,7 +76,7 @@ export default function CardModePage() {
         analysis_data: analysisResponse.analysis,
         response_suggestions: analysisResponse.suggestions,
         context_mode: 'card_mode',
-        conversation_id: conversation.id,
+        conversation_id: null, // 卡片模式不关联对话
         is_temporary: true // 标记为临时卡片
       }
 
@@ -145,7 +132,7 @@ export default function CardModePage() {
     try {
       setIsGenerating(true)
       
-      // 真正保存卡片到数据库
+      // 真正保存卡片到数据库（不关联对话）
       const cardResponse = await cardApi.createCard({
         title: generatedCard.title,
         description: generatedCard.description,
@@ -153,7 +140,7 @@ export default function CardModePage() {
         analysis_data: generatedCard.analysis_data,
         response_suggestions: generatedCard.response_suggestions,
         context_mode: generatedCard.context_mode,
-        conversation_id: generatedCard.conversation_id
+        conversation_id: null // 卡片模式不关联对话
       })
 
       toast({
