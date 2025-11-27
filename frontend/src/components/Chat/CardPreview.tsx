@@ -40,60 +40,48 @@ interface CardPreviewProps {
   isRegenerating?: boolean
 }
 
-// 根据分析结果确定卡片稀有度
-function getCardRarity(analysisData: any): 'common' | 'rare' | 'epic' | 'legendary' {
-  if (!analysisData) return 'common'
+// 根据情绪获取卡片颜色配置
+function getSentimentConfig(analysisData: any) {
+  if (!analysisData) {
+    return {
+      gradient: 'from-gray-400 via-gray-500 to-gray-600',
+      border: 'border-gray-400/50',
+      glow: 'shadow-[0_0_15px_rgba(156,163,175,0.3)]',
+      label: '中性',
+      labelColor: 'text-gray-300',
+      bgPattern: 'bg-gradient-to-br from-gray-500/20 via-gray-500/20 to-gray-600/20'
+    }
+  }
   
-  // 根据情感强度、意图复杂度等判断稀有度
-  const sentimentIntensity = analysisData.sentiment?.intensity || 0
-  const intentConfidence = analysisData.intent?.confidence || 0
-  const keyPointsCount = analysisData.key_points?.length || 0
+  const sentiment = analysisData.sentiment?.overall || 'neutral'
   
-  const score = sentimentIntensity * 0.3 + intentConfidence * 0.4 + (keyPointsCount / 5) * 0.3
-  
-  if (score >= 0.8) return 'legendary'
-  if (score >= 0.6) return 'epic'
-  if (score >= 0.4) return 'rare'
-  return 'common'
-}
-
-function getRarityConfig(rarity: string) {
-  switch (rarity) {
-    case 'legendary':
+  switch (sentiment) {
+    case 'positive':
       return {
-        gradient: 'from-yellow-400 via-orange-500 to-red-500',
-        border: 'border-yellow-400/50',
-        glow: 'shadow-[0_0_30px_rgba(251,191,36,0.6)]',
-        label: 'SSR',
-        labelColor: 'text-yellow-300',
-        bgPattern: 'bg-gradient-to-br from-yellow-500/20 via-orange-500/20 to-red-500/20'
+        gradient: 'from-green-400 via-emerald-500 to-teal-500',
+        border: 'border-green-400/50',
+        glow: 'shadow-[0_0_30px_rgba(34,197,94,0.6)]',
+        label: '积极',
+        labelColor: 'text-green-300',
+        bgPattern: 'bg-gradient-to-br from-green-500/20 via-emerald-500/20 to-teal-500/20'
       }
-    case 'epic':
+    case 'negative':
       return {
-        gradient: 'from-purple-400 via-pink-500 to-purple-600',
-        border: 'border-purple-400/50',
-        glow: 'shadow-[0_0_25px_rgba(168,85,247,0.5)]',
-        label: 'SR',
-        labelColor: 'text-purple-300',
-        bgPattern: 'bg-gradient-to-br from-purple-500/20 via-pink-500/20 to-purple-600/20'
-      }
-    case 'rare':
-      return {
-        gradient: 'from-blue-400 via-cyan-500 to-blue-600',
-        border: 'border-blue-400/50',
-        glow: 'shadow-[0_0_20px_rgba(59,130,246,0.4)]',
-        label: 'R',
-        labelColor: 'text-blue-300',
-        bgPattern: 'bg-gradient-to-br from-blue-500/20 via-cyan-500/20 to-blue-600/20'
+        gradient: 'from-red-400 via-rose-500 to-pink-500',
+        border: 'border-red-400/50',
+        glow: 'shadow-[0_0_30px_rgba(239,68,68,0.6)]',
+        label: '消极',
+        labelColor: 'text-red-300',
+        bgPattern: 'bg-gradient-to-br from-red-500/20 via-rose-500/20 to-pink-500/20'
       }
     default:
       return {
-        gradient: 'from-gray-400 via-gray-500 to-gray-600',
-        border: 'border-gray-400/50',
-        glow: 'shadow-[0_0_15px_rgba(156,163,175,0.3)]',
-        label: 'N',
-        labelColor: 'text-gray-300',
-        bgPattern: 'bg-gradient-to-br from-gray-500/20 via-gray-500/20 to-gray-600/20'
+        gradient: 'from-blue-400 via-cyan-500 to-sky-500',
+        border: 'border-blue-400/50',
+        glow: 'shadow-[0_0_20px_rgba(59,130,246,0.4)]',
+        label: '中性',
+        labelColor: 'text-blue-300',
+        bgPattern: 'bg-gradient-to-br from-blue-500/20 via-cyan-500/20 to-sky-500/20'
       }
   }
 }
@@ -110,8 +98,7 @@ export default function CardPreview({
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [isRevealing, setIsRevealing] = useState(true)
   
-  const rarity = getCardRarity(card.analysis_data)
-  const rarityConfig = getRarityConfig(rarity)
+  const sentimentConfig = getSentimentConfig(card.analysis_data)
 
   // 卡片揭示动画
   useEffect(() => {
@@ -152,17 +139,17 @@ export default function CardPreview({
         {/* 卡片主体 - 3D效果 */}
         <div className={cn(
           "relative aspect-[2/3] rounded-2xl overflow-hidden",
-          "border-4", rarityConfig.border,
-          rarityConfig.glow,
+          "border-4", sentimentConfig.border,
+          sentimentConfig.glow,
           "transform perspective-1000 preserve-3d",
           "hover:scale-105 transition-transform duration-300",
-          "bg-gradient-to-br", rarityConfig.bgPattern
+          "bg-gradient-to-br", sentimentConfig.bgPattern
         )}>
           {/* 背景光效 */}
           <div className="absolute inset-0">
             <div className={cn(
               "absolute inset-0 bg-gradient-to-br",
-              rarityConfig.gradient,
+              sentimentConfig.gradient,
               "opacity-30 animate-pulse"
             )} />
             {/* 闪光效果 */}
@@ -171,14 +158,14 @@ export default function CardPreview({
 
           {/* 顶部装饰 */}
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black/40 to-transparent">
-            {/* 稀有度标签 */}
+            {/* 情绪标签 */}
             <div className={cn(
               "absolute top-3 right-3 px-3 py-1 rounded-full",
               "bg-black/60 backdrop-blur-sm border-2",
-              rarityConfig.border
+              sentimentConfig.border
             )}>
-              <span className={cn("text-xs font-bold", rarityConfig.labelColor)}>
-                {rarityConfig.label}
+              <span className={cn("text-xs font-bold", sentimentConfig.labelColor)}>
+                {sentimentConfig.label}
               </span>
             </div>
             
@@ -272,7 +259,7 @@ export default function CardPreview({
                   size="sm"
                   className={cn(
                     "bg-gradient-to-r text-white text-xs",
-                    rarityConfig.gradient,
+                    sentimentConfig.gradient,
                     "hover:opacity-90"
                   )}
                 >
@@ -319,7 +306,7 @@ export default function CardPreview({
         {/* 卡片光晕效果 */}
         <div className={cn(
           "absolute -inset-4 rounded-3xl blur-2xl opacity-50 -z-10",
-          "bg-gradient-to-br", rarityConfig.gradient,
+          "bg-gradient-to-br", sentimentConfig.gradient,
           "animate-pulse"
         )} />
       </div>

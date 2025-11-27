@@ -227,15 +227,15 @@ export default function Sidebar() {
       removeConversation(conversationToDelete)
       
       // 清除当前对话状态
-      clearCurrentChat()
+        clearCurrentChat()
       
       // 如果是角色对话且删除的是当前对话，立即跳转
       if (isCharacterChat && isCurrentConversation) {
         // 立即导航，不等待状态更新
-        navigate('/chat-mode', { replace: true })
+          navigate('/chat-mode', { replace: true })
       } else if (!isCharacterChat && isCurrentConversation) {
         // 普通对话，删除当前对话时跳转
-        navigate('/chat', { replace: true })
+          navigate('/chat', { replace: true })
       }
     } catch (error) {
       console.error('删除对话失败:', error)

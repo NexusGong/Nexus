@@ -551,12 +551,12 @@ export default function ChatModePage() {
         })
       } else {
         // 如果没有返回卡片数据，尝试获取卡片详情
-        toast({
-          title: "卡片生成成功",
-          description: "分析卡片已保存",
-          duration: 2000
-        })
-        navigate('/cards')
+      toast({
+        title: "卡片生成成功",
+        description: "分析卡片已保存",
+        duration: 2000
+      })
+      navigate('/cards')
       }
     } catch (error) {
       console.error('生成卡片失败:', error)

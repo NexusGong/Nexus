@@ -396,18 +396,20 @@ async def analyze_chat_card_mode(
         ChatResponse: 分析结果和回复建议（不包含message字段，因为不保存对话）
     """
     try:
+        # 确保context_mode默认为card_mode（如果没有提供或为空）
+        context_mode = request_data.context_mode or "card_mode"
         
         # 使用AI分析聊天内容（不保存对话）
         analysis_result = await ai_service.analyze_chat_content(
             chat_content=request_data.message,
-            context_mode=request_data.context_mode
+            context_mode=context_mode
         )
         
         # 生成回复建议
         suggestions = await ai_service.generate_response_suggestions(
             chat_content=request_data.message,
             analysis_result=analysis_result,
-            context_mode=request_data.context_mode
+            context_mode=context_mode
         )
         
         # 创建一个临时的MessageResponse用于返回（不保存到数据库）
@@ -417,12 +419,12 @@ async def analyze_chat_card_mode(
             id=0,  # 临时ID
             conversation_id=0,  # 临时ID
             role="assistant",
-            content="",  # 卡片模式不需要消息内容
+            content="卡片模式分析结果",  # 占位符内容，满足schema验证要求
             message_type="analysis",
             source="card_mode",
             analysis_result=analysis_result.model_dump(),
             analysis_metadata={
-                "context_mode": request_data.context_mode,
+                "context_mode": context_mode,
                 "suggestions": [suggestion.model_dump() for suggestion in suggestions],
                 "suggestions_count": len(suggestions)
             },

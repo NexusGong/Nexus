@@ -1,23 +1,21 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Progress } from '@/components/ui/progress'
-import { Sparkles, Loader2, Eye, Save, RefreshCw } from 'lucide-react'
-import { cardApi, chatApi, conversationApi } from '@/services/api'
+import { Sparkles, Loader2 } from 'lucide-react'
+import { cardApi, chatApi } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
-import AnalysisResultComponent from '@/components/Chat/AnalysisResult'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import MultiImageUploader from '@/components/Chat/MultiImageUploader'
 import CardDrawAnimation from '@/components/CardMode/CardDrawAnimation'
-import { cn } from '@/lib/utils'
+import CardPreview from '@/components/Chat/CardPreview'
 
 export default function CardModePage() {
   const [inputValue, setInputValue] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedCard, setGeneratedCard] = useState<any>(null)
-  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [progressText, setProgressText] = useState('')
   const [showAnimation, setShowAnimation] = useState(false)
@@ -130,7 +128,7 @@ export default function CardModePage() {
     if (!generatedCard) return
 
     try {
-      setIsGenerating(true)
+      setIsSaving(true)
       
       // 真正保存卡片到数据库（不关联对话）
       const cardResponse = await cardApi.createCard({
@@ -161,14 +159,20 @@ export default function CardModePage() {
         variant: "destructive"
       })
     } finally {
-      setIsGenerating(false)
+      setIsSaving(false)
     }
   }
 
   const handleRegenerateCard = async () => {
-    setGeneratedCard(null)
-    // 保留输入内容，重新生成
-    handleGenerateCard()
+    if (isRegenerating || isGenerating) return
+    
+    try {
+      setIsRegenerating(true)
+      // 保留输入内容和卡片，重新生成时会自动更新
+      await handleGenerateCard()
+    } finally {
+      setIsRegenerating(false)
+    }
   }
 
   const handleNewCard = () => {
@@ -266,105 +270,29 @@ export default function CardModePage() {
           </div>
         ) : (
           <div className="w-full max-w-3xl space-y-6">
-            {/* 卡片展示 - 精美设计 */}
-            <Card className="border-0 shadow-2xl bg-gradient-to-br from-purple-50/50 via-pink-50/30 to-blue-50/50 dark:from-purple-950/20 dark:via-pink-950/10 dark:to-blue-950/20 overflow-hidden relative">
-              {/* 装饰性背景元素 */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-400/10 to-pink-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-blue-400/10 to-cyan-400/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
-              
-              <CardContent className="p-8 relative z-10">
-                {/* 标题区域 */}
-                <div className="mb-8">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 mb-4">
-                    <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">卡片模式</span>
-                  </div>
-                  <h2 className="text-4xl font-bold text-foreground mb-3 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    {generatedCard.title}
-                  </h2>
-                  {generatedCard.description && (
-                    <p className="text-muted-foreground text-lg">{generatedCard.description}</p>
-                  )}
-                </div>
+            {/* 使用CardPreview组件展示卡片 */}
+            {generatedCard && (
+              <CardPreview
+                card={{
+                  id: generatedCard.id || 0,
+                  title: generatedCard.title,
+                  description: generatedCard.description,
+                  original_content: generatedCard.original_content,
+                  analysis_data: generatedCard.analysis_data,
+                  response_suggestions: generatedCard.response_suggestions,
+                  context_mode: generatedCard.context_mode,
+                  created_at: generatedCard.created_at
+                }}
+                onSave={handleSaveCard}
+                onRegenerate={handleRegenerateCard}
+                onContinue={handleNewCard}
+                isSaving={isSaving}
+                isRegenerating={isRegenerating}
+              />
+            )}
 
-                {/* 分析结果预览 - 精美设计 */}
-                {generatedCard.analysis_data && (
-                  <div className="mt-6 p-6 rounded-2xl bg-white/60 dark:bg-black/20 backdrop-blur-sm border border-purple-200/50 dark:border-purple-800/50 shadow-lg">
-                    <div className="flex items-center gap-2 mb-5">
-                      <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 animate-pulse"></div>
-                      <h4 className="text-lg font-semibold text-foreground">AI分析结果</h4>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border border-purple-200/50 dark:border-purple-800/30 hover:shadow-md transition-shadow">
-                        <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-2 uppercase tracking-wide">意图</div>
-                        <div className="text-lg font-bold text-purple-900 dark:text-purple-100">
-                          {generatedCard.analysis_data.intent?.primary || '未知'}
-                        </div>
-                      </div>
-                      <div className={cn(
-                        "p-4 rounded-xl border hover:shadow-md transition-shadow",
-                        generatedCard.analysis_data.sentiment?.overall === 'positive' 
-                          ? "bg-gradient-to-br from-green-50 to-emerald-100/50 dark:from-green-950/30 dark:to-emerald-900/20 border-green-200/50 dark:border-green-800/30"
-                          : generatedCard.analysis_data.sentiment?.overall === 'negative'
-                          ? "bg-gradient-to-br from-red-50 to-rose-100/50 dark:from-red-950/30 dark:to-rose-900/20 border-red-200/50 dark:border-red-800/30"
-                          : "bg-gradient-to-br from-gray-50 to-slate-100/50 dark:from-gray-950/30 dark:to-slate-900/20 border-gray-200/50 dark:border-gray-800/30"
-                      )}>
-                        <div className={cn(
-                          "text-xs font-medium mb-2 uppercase tracking-wide",
-                          generatedCard.analysis_data.sentiment?.overall === 'positive'
-                            ? "text-green-600 dark:text-green-400"
-                            : generatedCard.analysis_data.sentiment?.overall === 'negative'
-                            ? "text-red-600 dark:text-red-400"
-                            : "text-gray-600 dark:text-gray-400"
-                        )}>情感</div>
-                        <div className={cn(
-                          "text-lg font-bold",
-                          generatedCard.analysis_data.sentiment?.overall === 'positive'
-                            ? "text-green-900 dark:text-green-100"
-                            : generatedCard.analysis_data.sentiment?.overall === 'negative'
-                            ? "text-red-900 dark:text-red-100"
-                            : "text-gray-900 dark:text-gray-100"
-                        )}>
-                          {generatedCard.analysis_data.sentiment?.overall === 'positive' ? '积极' : 
-                           generatedCard.analysis_data.sentiment?.overall === 'negative' ? '消极' : '中性'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 操作按钮 */}
-                <div className="mt-8 flex gap-3">
-                  <Button
-                    onClick={() => setViewDialogOpen(true)}
-                    variant="outline"
-                    className="flex-1 h-12 border-2 hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:border-purple-300 dark:hover:border-purple-700 transition-all"
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    查看详情
-                  </Button>
-                  <Button
-                    onClick={handleSaveCard}
-                    className="flex-1 h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all"
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    保存卡片
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 底部操作按钮 */}
+            {/* 底部操作按钮 - 抽新卡 */}
             <div className="flex gap-3 justify-center">
-              <Button
-                onClick={handleRegenerateCard}
-                variant="outline"
-                disabled={isGenerating}
-                className="h-12 px-6"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                重新生成
-              </Button>
               <Button
                 onClick={handleNewCard}
                 variant="outline"
@@ -377,31 +305,6 @@ export default function CardModePage() {
           </div>
         )}
       </div>
-
-      {/* 查看详情弹窗 */}
-      {generatedCard && (
-        <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold">
-                {generatedCard.title}
-              </DialogTitle>
-              <DialogDescription>
-                分析卡片详细信息
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              {generatedCard.analysis_data && (
-                <AnalysisResultComponent
-                  analysis={generatedCard.analysis_data}
-                  suggestions={generatedCard.response_suggestions || []}
-                />
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   )
 }
